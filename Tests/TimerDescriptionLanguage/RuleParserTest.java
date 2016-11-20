@@ -1,0 +1,120 @@
+package TimerDescriptionLanguage;
+
+import TimerDescriptionLanguage.Rule;
+import TimerDescriptionLanguage.RuleParser;
+import TimerDescriptionLanguage.RuleState;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
+import java.util.List;
+
+import static org.testng.Assert.*;
+
+/**
+ * Created by mcochrane on 18/11/16.
+ */
+public class RuleParserTest {
+    @BeforeMethod
+    public void setUp() throws Exception {
+        Rules.resetInstance();
+    }
+
+    @Test
+    public void testParseSimpleRule() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable channel 1 for one hour every day");
+
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        assertEquals(r.getAction().getActivatorState(), ActivatorState.DISABLED);
+        assertEquals(r.getIntervals().size(), 1);
+        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+        assertEquals(r.getPeriod(), TimeHelper.makePeriodDays(1));
+    }
+
+    @Test
+    public void testParseRuleDefaultNames() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r1 = RuleParser.parse("enable channel 1 for one hour every day");
+        Rule r2 = RuleParser.parse("enable channel 1 for one hour every day");
+        Rule r3 = RuleParser.parse("enable channel 1 for one hour every day");
+        Rule r4 = RuleParser.parse("enable channel 1 for one hour every day");
+
+        assertEquals(r1.getName(), "Rule_1");
+        assertEquals(r2.getName(), "Rule_2");
+        assertEquals(r3.getName(), "Rule_3");
+        assertEquals(r4.getName(), "Rule_4");
+    }
+
+    @Test
+    public void testParseRuleAction() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("disable channel 4 for one hour every day");
+
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        assertEquals(r.getAction().getActivatorState(), ActivatorState.ENABLED);
+        assertEquals(r.getAction().getActivator().getDefaultState(), ActivatorState.ENABLED);
+        assertEquals(r.getAction().getActivatorStateWhenRunning(), ActivatorState.DISABLED);
+        assertTrue(r.getAction().getActivator() instanceof ChannelActivator);
+        ChannelActivator activator = (ChannelActivator) r.getAction().getActivator();
+        assertEquals(activator.getChannel(), Channels.getInstance().get("4"));
+
+        Rule r1 = RuleParser.parse("enable channel 2 for one hour every day");
+
+        assertEquals(r1.getOutputState(), RuleState.INACTIVE);
+        assertEquals(r1.getAction().getActivatorState(), ActivatorState.DISABLED);
+        assertEquals(r1.getAction().getActivator().getDefaultState(), ActivatorState.DISABLED);
+        assertEquals(r1.getAction().getActivatorStateWhenRunning(), ActivatorState.ENABLED);
+        assertTrue(r1.getAction().getActivator() instanceof ChannelActivator);
+        ChannelActivator activator1 = (ChannelActivator) r1.getAction().getActivator();
+        assertEquals(activator1.getChannel(), Channels.getInstance().get("2"));
+    }
+
+    @Test
+    public void testParseRuleIntervals() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable channel 1 for one hour every day");
+        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+
+        Rule r1 = RuleParser.parse("enable channel 1 between second 10 and 20 every minute");
+        assertEquals(r1.getIntervals().get(0), TimeHelper.betweenSeconds(10, 20).get(0));
+
+        Rule r2 = RuleParser.parse("enable channel 1 on the 1st, 8th, 10th day of every month");
+        assertEquals(r2.getIntervals().size(), 3);
+        assertEquals(r2.getIntervals().get(0), TimeHelper.onDays(1, 8, 10).get(0));
+        assertEquals(r2.getIntervals().get(1), TimeHelper.onDays(1, 8, 10).get(1));
+        assertEquals(r2.getIntervals().get(2), TimeHelper.onDays(1, 8, 10).get(2));
+    }
+
+    @Test
+    public void testParseRulePeriod() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable channel 1 for one hour every 2 days");
+        assertEquals(r.getPeriod(), TimeHelper.makePeriodDays(2));
+
+        Rule r1 = RuleParser.parse("enable channel 1 between the 10th and 20th second every minute");
+        assertEquals(r1.getPeriod(), TimeHelper.makePeriodMinutes(1));
+
+        Rule r2 = RuleParser.parse("enable channel 1 on the 1st, 8th, 10th day of every third month");
+        assertEquals(r2.getPeriod(), TimeHelper.makePeriodMonths(3));
+    }
+
+    @Test
+    public void testMultipleWhitespace() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable    channel   1  for one hour            every 2 days");
+        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+        assertEquals(r.getPeriod(), TimeHelper.makePeriodDays(2));
+
+        Rule r1 = RuleParser.parse("enable channel 1      for one        hour every 2        days");
+        assertEquals(r1.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+        assertEquals(r1.getPeriod(), TimeHelper.makePeriodDays(2));
+    }
+
+    @Test
+    public void testNameARule() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("CUSTOM_RULE_NAME: enable channel 1 for one hour every 2 hours");
+        assertEquals(r.getName(), "CUSTOM_RULE_NAME");
+    }
+
+    @Test
+    public void parseMultipleRules()  throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        List<Rule> r = RuleParser.parseMultiple("enable rule AAA on the 1st, 5th, 10th, 11th, 12th, 15th day of every month\r\nAAA: enable channel 1 for 1 hour every 2 hours");
+        assertEquals(r.size(), 2);
+        assertEquals(r.get(1).getName(), "AAA");
+    }
+
+}
