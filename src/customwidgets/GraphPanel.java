@@ -2,16 +2,11 @@ package customwidgets;
 
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
+import org.joda.time.Interval;
 import org.joda.time.Period;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.FontMetrics;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Point;
-import java.awt.RenderingHints;
-import java.awt.Stroke;
+import java.awt.*;
+import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JPanel;
@@ -20,23 +15,40 @@ import javax.swing.JPanel;
  * Created by mcochrane on 30/10/16.
  */
 
-public class GraphPanel extends JPanel {
+public class GraphPanel extends JPanel implements MouseMotionListener, MouseWheelListener, MouseListener {
 
     private int width = 800;
     private int heigth = 400;
-    private int padding = 25;
-    private int labelPadding = 25;
-    private Color lineColor = new Color(145, 145, 145);
-    private Color pointColor = new Color(100, 100, 100, 180);
-    private Color gridColor = new Color(200, 200, 200, 200);
-    private Color backgroundColor = new Color(35, 35, 35);
-    private static final Stroke GRAPH_STROKE = new BasicStroke(2f);
+
+    static final int timeBarHeight = 50;
+    static final int leftPanelWidth = 100;
+    static final int channelHeight = 75;
+    static final int channelMeasurementBarHeight = 10;
+
+
+    static final int timeBarMinorAxisHeight = 30;
+    static final int timeBarMajorAxisHeight = 20;
+
+
+//    private int padding = 25;
+//    private int labelPadding = 25;
+    static final Color lineColor = new Color(145, 145, 145);
+    static final Color pointColor = new Color(100, 100, 100, 180);
+    static final Color gridColor = new Color(200, 200, 200, 200);
+    static final Color backgroundColor = new Color(40, 40, 40);
+    static final Color graphBackgroundColor = new Color(35, 35, 35);
+    static final Stroke GRAPH_STROKE = new BasicStroke(1f);
     private int pointWidth = 6;
     private int numberYDivisions = 10;
-    private List<Double> scores;
-    private List<Long> times;
-    private Long[] tWindow = new Long[2];
-    private Long[] fullTRange = new Long[2];
+
+    private List<GraphChannel> graphChannels = new ArrayList<>();
+    private List<GraphMarker> markers = new ArrayList<>();
+    Long[] tWindow = new Long[2];
+    private NeedsUpdatedDataListener needsUpdatedDataListener = null;
+    private boolean mouseDragging = false;
+    private long mouseDragTimeMs;
+
+//    Long[] fullTRange = new Long[2];
 
     private final Period[] possibleXAxisTickPeriods = {Period.seconds(1), Period.seconds(15),
             Period.minutes(1), Period.minutes(15), Period.hours(1), Period.hours(6),
@@ -45,29 +57,59 @@ public class GraphPanel extends JPanel {
     private final Period[] parentTickPeriods = {Period.minutes(1), Period.minutes(1),
             Period.hours(1), Period.hours(1), Period.days(1), Period.days(1),
             Period.months(1), /*Period.months(1),*/ Period.years(1)};
-
 //    private final Period[] xAxisMajorTickPeriods = {Period.seconds(1), Period.minutes(1),
 //            Period.hours(1), Period.days(1), Period.weeks(1), Period.months(1),
 //            Period.years(1)};
 
-    public GraphPanel(List<Double> scores, List<Long> times) {
-        this.scores = scores;
-        this.times = times;
-        setFullWindow();
-        fullTRange = tWindow.clone();
+    public GraphPanel() {
+        //setFullWindow();
+//        fullTRange = tWindow.clone();
+        addMouseMotionListener(this);
+        addMouseWheelListener(this);
+        addMouseListener(this);
+        markers.add(new GraphMarker(this, new DateTime(), "T0"));
     }
 
-    public void updateData(List<Double> scores, List<Long> times) {
-//        this.scores.clear();
-//        this.times.clear();
-//
-//        for (Double d : scores) this.scores.add(d);
-//        for (Long l : times) this.times.add(l);
+    public void addChannel(List<Double> scores, List<Long> times) {
+        addChannel(String.valueOf(graphChannels.size()), scores, times);
+    }
 
-        this.scores = scores;
-        this.times = times;
-        invalidate();
-        this.repaint();
+    public void addChannel(String name, List<Double> scores, List<Long> times) {
+        graphChannels.add(new GraphChannel(this, name, graphChannels.size(), scores, times));
+    }
+
+    public GraphChannel getChannel(int index) throws IndexOutOfBoundsException {
+        return graphChannels.get(index);
+    }
+
+    public GraphChannel getChannel(String name) throws IndexOutOfBoundsException {
+        for (GraphChannel c : graphChannels) {
+            if (c.getName().equals(name)) return c;
+        }
+        throw new IndexOutOfBoundsException("Name " + name + " not found in channel list.");
+    }
+
+    public void addMarker(DateTime time, String label) {
+        markers.add(new GraphMarker(this, time, label));
+    }
+
+    public GraphMarker getMarker(int index) throws IndexOutOfBoundsException {
+        return markers.get(index);
+    }
+
+    //delete specific marker.  Returns true if the list was modified.
+    public boolean deleteMarker(GraphMarker marker) {
+        return markers.remove(marker);
+    }
+
+    //delete at index
+    public void deleteMarker(int index) {
+        markers.remove(index);
+    }
+
+    public synchronized void addNeedsUpdatedDataListener(NeedsUpdatedDataListener listener) {
+        if (listener == null) return;
+        this.needsUpdatedDataListener = listener;
     }
 
     public void setWindow(DateTime start, DateTime stop) {
@@ -82,8 +124,44 @@ public class GraphPanel extends JPanel {
 
     //View full range of data
     public void setFullWindow() {
-        tWindow[0] = times.get(0);
-        tWindow[1] = times.get(times.size()-1);
+        tWindow[0] = Long.MAX_VALUE;
+        tWindow[1] = Long.MIN_VALUE;
+        for (GraphChannel c : graphChannels) {
+            Long chanFullWindow[] = c.getFullWindow();
+            if (chanFullWindow[0] < tWindow[0]) tWindow[0] = chanFullWindow[0];
+            if (chanFullWindow[1] > tWindow[1]) tWindow[1] = chanFullWindow[1];
+        }
+    }
+
+    public void setFullWindow(int chan) {
+        try {
+            tWindow = graphChannels.get(chan).getFullWindow();
+        } catch (Exception ex) {
+            //invalid channel?
+            //failed to update
+        }
+    }
+
+    boolean isTimeVisible(DateTime time) {
+        return time.isAfter(getWindowStart()) && time.isBefore(getWindowStop());
+    }
+
+    boolean isIntervalVisible(Interval interval) {
+        return !((interval.getStart().isBefore(getWindowStart()) &&
+                  interval.getEnd().isBefore(getWindowStart()))
+                ||
+                 (interval.getStart().isAfter(getWindowStop()) &&
+                  interval.getEnd().isAfter(getWindowStop())));
+    }
+
+    boolean isIntervalFullyVisible(Interval interval) {
+        return (isTimeVisible(interval.getStart()) &&
+                isTimeVisible(interval.getEnd()));
+    }
+
+    boolean isObjectVisible(DateTime startTime, int widthInPixels) {
+        return isIntervalVisible(new Interval(startTime.getMillis(),
+                startTime.getMillis() + (int)(widthInPixels/getXPixelsPerMs())));
     }
 
     public DateTime getWindowStart() {
@@ -94,9 +172,9 @@ public class GraphPanel extends JPanel {
         return new DateTime(tWindow[1]);
     }
 
-    public void setWindowCenter(DateTime center) {
-        setWindowCenter(center.getMillis());
-    }
+//    public void setWindowCenter(DateTime center) {
+//        setWindowCenter(center.getMillis());
+//    }
 
     public long getWindowCenterMs() {
         return (tWindow[0] + tWindow[1])/2;
@@ -106,14 +184,14 @@ public class GraphPanel extends JPanel {
         return new DateTime(getWindowCenterMs());
     }
 
-    public void setWindowCenter(long center) {
-        long newStart = center - getWindowDurationMs()/2;
-        long newStop = center + getWindowDurationMs()/2;
-        if (newStart < fullTRange[0]) newStart = fullTRange[0];
-        if (newStop > fullTRange[0]) newStop = fullTRange[0];
-
-        setWindow(newStart, newStop);
-    }
+//    public void setWindowCenter(long center) {
+//        long newStart = center - getWindowDurationMs()/2;
+//        long newStop = center + getWindowDurationMs()/2;
+//        if (newStart < fullTRange[0]) newStart = fullTRange[0];
+//        if (newStop > fullTRange[0]) newStop = fullTRange[0];
+//
+//        setWindow(newStart, newStop);
+//    }
 
     public void pinWindowToPoint(long pointMs, int pointX) {
         //get pointX in time space
@@ -129,6 +207,10 @@ public class GraphPanel extends JPanel {
         setWindow(newStart, newStop);
     }
 
+    public Interval getWindowInterval() {
+        return new Interval(getWindowStart(), getWindowStop());
+    }
+
     public Duration getWindowDuration() {
         return new Duration(getWindowStart().getMillis(), getWindowStop().getMillis());
     }
@@ -139,14 +221,8 @@ public class GraphPanel extends JPanel {
     }
 
     public long getXPositionMs(int xpixel) {
-        long xMin = tWindow[0];
-        double xScale = ((double) getWidth() - (2 * padding) - labelPadding) / (getWindowDurationMs());
-//        return (int) ((xTimeMs-xMin) * xScale + padding + labelPadding);
-//        x1 = (int) ((xTimeMs-xMin) * xScale + padding + labelPadding);
-//        x1 = ((xTimeMs-xMin) * xScale + padding + labelPadding);
-//        (x1 - padding - labelPadding)/xScale = xTimeMs-xMin;
-//        ((x1 - padding - labelPadding) / xScale) + xMin = xTimeMs;
-        return (long) ((xpixel - padding - labelPadding) / xScale) + xMin;
+        long tMin = tWindow[0];
+        return (long) ((xpixel - leftPanelWidth) / getXPixelsPerMs()) + tMin;
     }
 
     public DateTime getXPosition(int xpixel) {
@@ -154,9 +230,8 @@ public class GraphPanel extends JPanel {
     }
 
     public int getXPositionPixel(long xTimeMs) {
-        long xMin = tWindow[0];
-        double xScale = ((double) getWidth() - (2 * padding) - labelPadding) / (getWindowDurationMs());
-        return (int) ((xTimeMs-xMin) * xScale + padding + labelPadding);
+        long tMin = tWindow[0];
+        return (int) ((xTimeMs-tMin) * getXPixelsPerMs() + leftPanelWidth);
     }
 
     @Override
@@ -165,50 +240,34 @@ public class GraphPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        long tRange = getWindowDurationMs();
-        double xMin = tWindow[0];
-        double xMax = tWindow[1];
-        //double xScale = ((double) getWidth() - (2 * padding) - labelPadding) / (scores.size() - 1);
-        double xScale = ((double) getWidth() - (2 * padding) - labelPadding) / (tRange);
-        double yScale = ((double) getHeight() - 2 * padding - labelPadding) / (getMaxScore() - getMinScore());
+        drawBackground(g2);
 
-        List<Point> graphPoints = new ArrayList<>();
-        for (int i = 0; i < scores.size(); i++) {
-            if (times.get(i) >= xMin && times.get(i) <= xMax) {
-                //int x1 = (int) (i * xScale + padding + labelPadding);
-                int x1 = (int) ((times.get(i) - xMin) * xScale + padding + labelPadding);
-                int y1 = (int) ((getMaxScore() - scores.get(i)) * yScale + padding);
-                graphPoints.add(new Point(x1, y1));
-            } else if (times.get(i) > xMax) {
-                int x1 = (int) ((xMax - xMin) * xScale + padding + labelPadding);
-                int y1 = (int) ((getMaxScore() - scores.get(i-1)) * yScale + padding);
-                graphPoints.add(new Point(x1, y1));
-                break;
-            }
+        drawXAxis(g2);
+
+        //draw graphs
+        for (GraphChannel c : graphChannels) {
+            c.drawChannelData(g2);
         }
 
-        // draw white background
-        g2.setColor(backgroundColor);
-        g2.fillRect(padding + labelPadding, padding, getWidth() - (2 * padding) - labelPadding, getHeight() - 2 * padding - labelPadding);
-        g2.setColor(Color.BLACK);
+        //draw markers
+        for (GraphMarker m : markers) {
+            m.drawIfVisible(g2);
+        }
 
-        // create hatch marks and grid lines for y axis.
-//        for (int i = 0; i < numberYDivisions + 1; i++) {
-//            int x0 = padding + labelPadding;
-//            int x1 = pointWidth + padding + labelPadding;
-//            int y0 = getHeight() - ((i * (getHeight() - padding * 2 - labelPadding)) / numberYDivisions + padding + labelPadding);
-//            int y1 = y0;
-//            if (scores.size() > 0) {
-////                g2.setColor(gridColor);
-////                g2.drawLine(padding + labelPadding + 1 + pointWidth, y0, getWidth() - padding, y1);
-//                g2.setColor(Color.BLACK);
-//                String yLabel = ((int) ((getMinScore() + (getMaxScore() - getMinScore()) * ((i * 1.0) / numberYDivisions)) * 100)) / 100.0 + "";
-//                FontMetrics metrics = g2.getFontMetrics();
-//                int labelWidth = metrics.stringWidth(yLabel);
-//                g2.drawString(yLabel, x0 - labelWidth - 5, y0 + (metrics.getHeight() / 2) - 3);
-//            }
-//            g2.drawLine(x0, y0, x1, y1);
-//        }
+        //draw the left panel
+        for (GraphChannel c : graphChannels) {
+            c.drawLeftPanelChannelBox(g2);
+        }
+    }
+
+    private void drawBackground(Graphics2D g2) {
+        g2.setColor(backgroundColor);
+        g2.fillRect(0, 0, getWidth(), getHeight());
+    }
+
+    private void drawXAxis(Graphics2D g2) {
+        drawXaxisMinorBar(g2);
+        drawXaxisMajorBar(g2);
 
         //new x axis drawing...
         //Find best spacing - secs/hours/mins/days/weeks/months/years
@@ -219,10 +278,12 @@ public class GraphPanel extends JPanel {
 
         Period xAxisTickPeriod = null;
         for (Period p : possibleXAxisTickPeriods) {
-            if (periodToPixels(p) > minPixelsPerTick) {
-                xAxisTickPeriod = p;
-                break;
-            }
+            try {
+                if (periodToPixels(p) > minPixelsPerTick) {
+                    xAxisTickPeriod = p;
+                    break;
+                }
+            } catch (Exception ex) {}
         }
         if (xAxisTickPeriod == null) xAxisTickPeriod = Period.years(1);
 
@@ -239,82 +300,42 @@ public class GraphPanel extends JPanel {
             ex.printStackTrace();
             return;
         }
-
-        //draw
-
-
-//        // draw x axis
-//        //want N ticks, equally spaced.
-//        int numTicks = 10;
-//        long xSpacing = tRange/(numTicks-1); //get's floored because it's int division
-//        for (int i = 0; i < numTicks; i++) {
-//            //variables determining the drawing location on the screen
-//            int x0 = i * (getWidth() - padding * 2 - labelPadding) / (numTicks - 1) + padding + labelPadding;
-//            int x1 = x0;
-//            int y0 = getHeight() - padding - labelPadding;
-//            int y1 = y0 - pointWidth;
-//
-//            long x0Time = tWindow[0] + xSpacing * i;
-//
-//            //g2.drawLine(x0, getHeight() - padding - labelPadding - 1 - pointWidth, x1, padding);
-//            g2.setColor(Color.BLACK);
-//            String xLabel = new DateTime(x0Time).toString("HH:mm:ss");
-//            FontMetrics metrics = g2.getFontMetrics();
-//            int labelWidth = metrics.stringWidth(xLabel);
-//            g2.drawString(xLabel, x0 - labelWidth / 2, y0 + metrics.getHeight() + 3);
-//
-//            g2.drawLine(x0, y0, x1, y1);
-//        }
-
-
-        // and for x axis
-//        for (int i = 0; i < scores.size(); i++) {
-//            if (scores.size() > 1) {
-//                int x0 = i * (getWidth() - padding * 2 - labelPadding) / (scores.size() - 1) + padding + labelPadding;
-//                int x1 = x0;
-//                int y0 = getHeight() - padding - labelPadding;
-//                int y1 = y0 - pointWidth;
-//                if ((i % ((int) ((scores.size() / 20.0)) + 1)) == 0) {
-//                    g2.setColor(gridColor);
-//                    g2.drawLine(x0, getHeight() - padding - labelPadding - 1 - pointWidth, x1, padding);
-//                    g2.setColor(Color.BLACK);
-//                    //String xLabel = i + "";
-//                    String xLabel = new DateTime(times.get(i)).toString("HH:mm:ss");
-//                    FontMetrics metrics = g2.getFontMetrics();
-//                    int labelWidth = metrics.stringWidth(xLabel);
-//                    g2.drawString(xLabel, x0 - labelWidth / 2, y0 + metrics.getHeight() + 3);
-//                }
-//                g2.drawLine(x0, y0, x1, y1);
-//            }
-//        }
-
-        // create x and y axes
-        g2.drawLine(padding + labelPadding, getHeight() - padding - labelPadding, padding + labelPadding, padding);
-        g2.drawLine(padding + labelPadding, getHeight() - padding - labelPadding, getWidth() - padding, getHeight() - padding - labelPadding);
-
-        Stroke oldStroke = g2.getStroke();
-        g2.setColor(lineColor);
-        g2.setStroke(GRAPH_STROKE);
-        for (int i = 0; i < graphPoints.size() - 1; i++) {
-            Point p1 = graphPoints.get(i);
-            Point p2 = graphPoints.get(i + 1);
-            //drawSegment(g2, p1, p2);
-            drawSegmentPreStep(g2, p1, p2);
-        }
-
-//        g2.setStroke(oldStroke);
-//        g2.setColor(pointColor);
-//        //no dot for first or last points
-//        for (int i = 1; i < graphPoints.size()-1; i++) {
-//            int x = graphPoints.get(i).x - pointWidth / 2;
-//            int y = graphPoints.get(i).y - pointWidth / 2;
-//            int ovalW = pointWidth;
-//            int ovalH = pointWidth;
-//            g2.fillOval(x, y, ovalW, ovalH);
-//        }
     }
 
-    private String makeXAxisLabelText(DateTime tickTime, Period xAxisTickPeriod) throws Exception {
+    private void drawXaxisMinorBar(Graphics2D g2) {
+        Rectangle r = new Rectangle(leftPanelWidth, timeBarMajorAxisHeight,
+                getWidth()-leftPanelWidth, timeBarMinorAxisHeight);
+        Color gradientStart = new Color(75, 75, 75);
+        Color gradientEnd = new Color(60, 60, 60);
+
+        GradientPaint gp = new GradientPaint(new Point(0, r.y), gradientStart,
+                new Point(0, (int)r.getMaxY()), gradientEnd);
+        g2.setPaint(gp);
+        g2.fill(r);
+        g2.setColor(Color.BLACK);
+        g2.draw(r);
+    }
+
+    private void drawXaxisMajorBar(Graphics2D g2) {
+        Rectangle r = new Rectangle(leftPanelWidth, 0,
+                getWidth()-leftPanelWidth, timeBarMajorAxisHeight);
+        Color gradientStart = new Color(75, 75, 75);
+        Color gradientEnd = new Color(60, 60, 60);
+
+        GradientPaint gp = new GradientPaint(new Point(0, r.y), gradientStart,
+                new Point(0, (int)r.getMaxY()), gradientEnd);
+        g2.setPaint(gp);
+        g2.fill(r);
+        g2.setColor(Color.BLACK);
+        g2.draw(r);
+    }
+
+    //pixels per ms
+    double getXPixelsPerMs() {
+        return ((double) getWidth() - leftPanelWidth) / (getWindowDurationMs());
+    }
+
+    private String makeMinorXAxisLabelText(DateTime tickTime, Period xAxisTickPeriod) throws Exception {
         if (xAxisTickPeriod.getYears() > 0) {
             return tickTime.toString("YYYY");
         } else if (xAxisTickPeriod.getMonths() > 0) {
@@ -323,13 +344,36 @@ public class GraphPanel extends JPanel {
             return tickTime.toString("d");
         } else if (xAxisTickPeriod.getDays() > 0) {
 //            return tickTime.toString("E");
-            return tickTime.toString("d");
+            return tickTime.toString("E d");
         } else if (xAxisTickPeriod.getHours() > 0) {
-            return tickTime.toString("ha");
+            return tickTime.toString("h a");
         } else if (xAxisTickPeriod.getMinutes() > 0) {
             return tickTime.toString("mm");
         } else if (xAxisTickPeriod.getSeconds() > 0) {
             return tickTime.toString("ss");
+        } else if (xAxisTickPeriod.getMillis() > 0) {
+            return tickTime.toString("SSS");
+        } else {
+            throw new Exception("invalid period type");
+        }
+    }
+
+    private String makeMajorXAxisLabelText(DateTime tickTime, Period xAxisTickPeriod) throws Exception {
+        if (xAxisTickPeriod.getYears() > 0) {
+            return tickTime.toString("YYYY");
+        } else if (xAxisTickPeriod.getMonths() > 0) {
+            return tickTime.toString("MMM YYYY");
+        } else if (xAxisTickPeriod.getWeeks() > 0) {
+            return tickTime.toString("d MMM");
+        } else if (xAxisTickPeriod.getDays() > 0) {
+//            return tickTime.toString("E");
+            return tickTime.toString("d MMM");
+        } else if (xAxisTickPeriod.getHours() > 0) {
+            return tickTime.toString("h a 'on' MMM d");
+        } else if (xAxisTickPeriod.getMinutes() > 0) {
+            return tickTime.toString("h:mm a");
+        } else if (xAxisTickPeriod.getSeconds() > 0) {
+            return tickTime.toString("h:mm:ss a");
         } else if (xAxisTickPeriod.getMillis() > 0) {
             return tickTime.toString("SSS");
         } else {
@@ -363,11 +407,11 @@ public class GraphPanel extends JPanel {
     private void drawXAxisLabel(Graphics2D g2, DateTime currentXAxisTick, Period xAxisTickPeriod) throws Exception {
         if (isMajorXTick(currentXAxisTick, xAxisTickPeriod)) {
             drawTwoTierXAxisLabel(g2, currentXAxisTick.getMillis(),
-                    makeXAxisLabelText(currentXAxisTick, xAxisTickPeriod),
-                    makeXAxisLabelText(currentXAxisTick, getParentTickPeriod(xAxisTickPeriod)));
+                    makeMinorXAxisLabelText(currentXAxisTick, xAxisTickPeriod),
+                    makeMajorXAxisLabelText(currentXAxisTick, getParentTickPeriod(xAxisTickPeriod)));
         } else {
             drawSingleTierXAxisLabel(g2, currentXAxisTick.getMillis(),
-                    makeXAxisLabelText(currentXAxisTick, xAxisTickPeriod));
+                    makeMinorXAxisLabelText(currentXAxisTick, xAxisTickPeriod));
         }
     }
 
@@ -375,50 +419,29 @@ public class GraphPanel extends JPanel {
         drawTwoTierXAxisLabel(g2, tMs, xLabel, "");
     }
 
-//    private void drawTwoTierXAxisLabel(Graphics2D g2, long tMs, String xLabel, String tierTwoLabel) {
-//        //variables determining the drawing location on the screen
-//        int x0 = getXPositionPixel(tMs);
-//        int x1 = x0;
-//        int y0 = getHeight() - padding - labelPadding;
-//        int y1 = y0 - pointWidth;
-//
-//        g2.drawLine(x0, getHeight() - padding - labelPadding - 1 - pointWidth, x1, padding);
-//        g2.setColor(Color.BLACK);
-//        //String xLabel = new DateTime(tMs).toString("HH:mm:ss");
-//        FontMetrics metrics = g2.getFontMetrics();
-//        int labelWidth = metrics.stringWidth(xLabel);
-//        g2.drawString(xLabel, x0 - labelWidth / 2, y0 + metrics.getHeight() + 3);
-//
-//        g2.drawLine(x0, y0, x1, y1);
-//
-//        if (tierTwoLabel != null && !tierTwoLabel.isEmpty()) {
-//            g2.drawString(tierTwoLabel, x0 - labelWidth / 2, y0 + (metrics.getHeight() + 3)*2);
-//        }
-//    }
-
     private void drawTwoTierXAxisLabel(Graphics2D g2, long tMs, String xLabel, String tierTwoLabel) {
         //variables determining the drawing location on the screen
         int x0 = getXPositionPixel(tMs);
         int x1 = x0;
-        int y0 = getHeight() - padding - labelPadding;
-        int y1 = y0 - pointWidth;
+        int y0 = timeBarHeight;
+        int y1 = timeBarHeight - 10;
 
 //        g2.setColor(gridColor);
 //        g2.drawLine(x0, getHeight() - padding - labelPadding - 1 - pointWidth, x1, padding);
-        g2.setColor(Color.BLACK);
-        //String xLabel = new DateTime(tMs).toString("HH:mm:ss");
+
         FontMetrics metrics = g2.getFontMetrics();
-        int labelWidth = metrics.stringWidth(xLabel);
-        g2.drawString(xLabel, x0 - labelWidth / 2, y0 + (metrics.getHeight() + 3)*2);
-
-
 
         if (tierTwoLabel != null && !tierTwoLabel.isEmpty()) {
-            int label2Width = metrics.stringWidth(tierTwoLabel);
-            g2.drawString(tierTwoLabel, x0 - label2Width / 2, y0 + metrics.getHeight() + 3);
-            g2.drawLine(x0, y0, x1, y1);
+//            int label2Width = metrics.stringWidth(tierTwoLabel);
+            g2.setColor(new Color(163, 163, 163));
+            g2.drawString(tierTwoLabel, x0 + 5 , timeBarMajorAxisHeight - 3);
+            g2.drawLine(x0, y0, x1, timeBarMajorAxisHeight+1);
+            g2.drawLine(x0, timeBarMajorAxisHeight, x1, timeBarMajorAxisHeight/2);
         } else {
-            g2.drawLine(x0, y0 + metrics.getHeight() + 3, x1, y1);
+//            int labelWidth = metrics.stringWidth(xLabel);
+            g2.setColor(new Color(145, 145, 145));
+            g2.drawString(xLabel, x0 - 3, y1 - 3);
+            g2.drawLine(x0, y0, x1, y1);
         }
     }
 
@@ -472,54 +495,100 @@ public class GraphPanel extends JPanel {
 
     private int periodToPixels(Period p) {
         Duration d = p.toDurationFrom(getWindowStart());
-        int graphWidthPixels = getWidth() - (2 * padding) - labelPadding;
+        int graphWidthPixels = getWidth() - leftPanelWidth;
         return (int) (graphWidthPixels/(getWindowDurationMs()/d.getMillis()));
     }
 
-    private void drawSegment(Graphics2D g2, Point p1, Point p2) {
-        g2.drawLine(p1.x, p1.y, p2.x, p2.y);
+
+    private void zoomIn(int xPosPixels) {
+        zoomBy(xPosPixels, 0.6);
     }
 
+    // zoomFactor is a number between -1 and 1.
+    // Positive numbers zoom in, negative numbers zoom out.
+    private void zoomBy(int xPosPixels, double zoomFactor) {
+        long xPosMs = getXPositionMs(xPosPixels);
+        long duration = getWindowDurationMs();
+        long newDuration = (long)((double)duration/(1.0+zoomFactor));
 
-    private void drawSegmentPreStep(Graphics2D g2, Point p1, Point p2) {
-        g2.drawLine(p1.x, p1.y, p2.x, p1.y);
-        g2.drawLine(p2.x, p1.y, p2.x, p2.y);
+        if (new Duration(newDuration).isShorterThan(Duration.millis(1)) ||
+                new Duration(newDuration).isLongerThan(Duration.standardDays(365*2)))
+            return;
+        // Set new duration
+        setWindow(getWindowStart().getMillis(),
+                getWindowStart().getMillis() + newDuration);
+
+        pinWindowToPoint(xPosMs, xPosPixels);
+
+        if (needsUpdatedDataListener != null)
+            needsUpdatedDataListener.needsUpdatedData(getWindowInterval());
+
+        //updateWindowLabel();
     }
 
-    private void drawSegmentPostStep(Graphics2D g2, Point p1, Point p2) {
-        g2.drawLine(p1.x, p1.y, p1.x, p2.y);
-        g2.drawLine(p1.x, p2.y, p2.x, p2.y);
+    private void zoomOut(int xPosPixels) {
+        zoomBy(xPosPixels, -0.6);
+
     }
 
-    //    @Override
-//    public Dimension getPreferredSize() {
-//        return new Dimension(width, heigth);
-//    }
-    private double getMinScore() {
-        return 0.0 - 0.1;
-//        double minScore = Double.MAX_VALUE;
-//        for (Double score : scores) {
-//            minScore = Math.min(minScore, score);
-//        }
-//        return minScore;
+    @Override
+    public void mouseDragged(MouseEvent mouseEvent) {
+        if (mouseDragging) {
+            pinWindowToPoint(mouseDragTimeMs, mouseEvent.getX());
+            if (needsUpdatedDataListener != null)
+                needsUpdatedDataListener.needsUpdatedData(getWindowInterval());
+        }
+        //needsUpdatedDataListener
     }
 
-    private double getMaxScore() {
-        return 1.0 + 0.1;
-//        double maxScore = Double.MIN_VALUE;
-//        for (Double score : scores) {
-//            maxScore = Math.max(maxScore, score);
-//        }
-//        return maxScore;
-    }
+    @Override
+    public void mouseMoved(MouseEvent mouseEvent) {
+        for (GraphChannel c : graphChannels) {
+            c.mouseMoved(mouseEvent);
+        }
 
-    public void setScores(List<Double> scores) {
-        this.scores = scores;
-        invalidate();
         this.repaint();
     }
 
-    public List<Double> getScores() {
-        return scores;
+    @Override
+    public void mouseWheelMoved(MouseWheelEvent mouseWheelEvent) {
+        //long xPosMs = graphPanel1.getXPositionMs(mouseWheelEvent.getX());
+        if (mouseWheelEvent.getWheelRotation() < 0) {
+            zoomIn(mouseWheelEvent.getX());
+        } else if (mouseWheelEvent.getWheelRotation() > 0) {
+            zoomOut(mouseWheelEvent.getX());
+        }
+
+        for (GraphChannel c : graphChannels) {
+            c.mouseMoved(mouseWheelEvent);
+        }
+
+        this.repaint();
+    }
+
+    @Override
+    public void mouseClicked(MouseEvent mouseEvent) {
+
+    }
+
+    @Override
+    public void mousePressed(MouseEvent mouseEvent) {
+        mouseDragging = true;
+        mouseDragTimeMs = getXPositionMs(mouseEvent.getX());
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent mouseEvent) {
+        mouseDragging = false;
+    }
+
+    @Override
+    public void mouseEntered(MouseEvent mouseEvent) {
+
+    }
+
+    @Override
+    public void mouseExited(MouseEvent mouseEvent) {
+
     }
 }

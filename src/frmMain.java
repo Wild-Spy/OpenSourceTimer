@@ -1,5 +1,10 @@
 import TimerDescriptionLanguage.*;
 import customwidgets.GraphPanel;
+import customwidgets.NeedsUpdatedDataListener;
+import jssc.SerialPortException;
+import jssc.SerialPortList;
+import min.*;
+import min.Frame;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -11,37 +16,34 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Created by mcochrane on 30/10/16.
  */
 public class frmMain {
-    private JButton btnZoomIn;
+    private JButton btnUploadToDev;
     private JPanel panel1;
     private JTextArea txtRules;
     private GraphPanel graphPanel1;
     private JLabel lblInfo;
-    private JButton btnZoomOut;
+    private JButton btnConnectToDev;
     private JButton btnReparse;
     private DateTime deploymentTime = new DateTime();
-
-    private boolean mouseDragging = false;
-    private long mouseDragTimeMs;
+    SerialHandler serialHandler;
 
     //private zoomLevel
 
-    public frmMain() {
-        btnZoomIn.addActionListener(new ActionListener() {
+    public frmMain() throws SerialPortException {
+        btnUploadToDev.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
-//                btnZoomIn.setText("Changed!!");
+//                btnUploadToDev.setText("Changed!!");
 //                JOptionPane.showMessageDialog(null, "Hello World");
                 //zoomIn();
             }
         });
 
-        btnZoomOut.addActionListener(new ActionListener() {
+        btnConnectToDev.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
                 //zoomOut();
@@ -53,40 +55,15 @@ public class frmMain {
         graphPanel1.addMouseWheelListener(new MouseWheelListener() {
             @Override
             public void mouseWheelMoved(MouseWheelEvent mouseWheelEvent) {
-                //long xPosMs = graphPanel1.getXPositionMs(mouseWheelEvent.getX());
-                if (mouseWheelEvent.getWheelRotation() < 0) {
-                    zoomIn(mouseWheelEvent.getX());
-                } else if (mouseWheelEvent.getWheelRotation() > 0) {
-                    zoomOut(mouseWheelEvent.getX());
-                }
-            }
-        });
-        graphPanel1.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent mouseEvent) {
-                super.mousePressed(mouseEvent);
-                mouseDragging = true;
-                mouseDragTimeMs = graphPanel1.getXPositionMs(mouseEvent.getX());
-            }
-        });
-        graphPanel1.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseReleased(MouseEvent mouseEvent) {
-                super.mouseReleased(mouseEvent);
-                mouseDragging = false;
+                updateWindowLabel();
             }
         });
 
         graphPanel1.addMouseMotionListener(new MouseInputAdapter() {
             @Override
             public void mouseDragged(MouseEvent mouseEvent) {
-                super.mouseMoved(mouseEvent);
-                if (mouseDragging) {
-                    graphPanel1.pinWindowToPoint(mouseDragTimeMs, mouseEvent.getX());
-                    regenGraphPoints(graphPanel1.getWindowStart(),
-                            graphPanel1.getWindowStop());
-                    updateWindowLabel();
-                }
+                super.mouseDragged(mouseEvent);
+                updateWindowLabel();
             }
         });
 
@@ -107,6 +84,13 @@ public class frmMain {
             }
         });
 
+        graphPanel1.addNeedsUpdatedDataListener(new NeedsUpdatedDataListener() {
+            @Override
+            public void needsUpdatedData(Interval window) {
+                regenGraphPoints(window.getStart(), window.getEnd());
+            }
+        });
+
         btnReparse.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
@@ -116,72 +100,39 @@ public class frmMain {
 //                    Rule r = RuleParser.parse(txtRules.getText());
 //                    r.enable();
                     //enable the last rule
-                    r.get(r.size()-1).enable();
+                    //r.get(r.size()-1).enable();
                 } catch (Exception ex) {
                     System.out.println("error!");
                     ex.printStackTrace();
                 }
+                //graphPanel1.setFullWindow();
                 regenGraphPoints(graphPanel1.getWindowStart(),
                         graphPanel1.getWindowStop());
             }
         });
 
         //btnReparse.doClick();
+
+        String[] portNames = SerialPortList.getPortNames();
+        System.out.println("Serial Port Names:");
+        for (String name : portNames) {
+            System.out.println(name);
+        }
+        if (portNames.length > 0) {
+            serialHandler = new SerialHandler(portNames[0], 115200, new SerialReceivedFrameHandler());
+        }
+    }
+
+    class SerialReceivedFrameHandler implements ReceivedFrameHandler {
+        @Override
+        public void handleReceivedFrame(Frame frame) {
+            System.out.println(frame.toString());
+        }
     }
 
     private void updateWindowLabel() {
         lblInfo.setText("<html>" + graphPanel1.getWindowStart().toString("dd/MM/yyyy HH:mm:ss") + "<br>" +
                         graphPanel1.getWindowStop().toString("dd/MM/yyyy HH:mm:ss") + "</html>");
-    }
-
-    private void zoomIn(int xPosPixels) {
-        zoomBy(xPosPixels, 0.2);
-
-//        long start = graphPanel1.getWindowStart().getMillis();
-//        long stop = graphPanel1.getWindowStop().getMillis();
-//
-//        long newstart = graphPanel1.getWindowStart().getMillis() + graphPanel1.getWindowDurationMs()/5
-//
-//        long newstart = start + (stop-start)/5;
-//        long newstop = stop - (stop-start)/5;
-//
-//        graphPanel1.setWindow(new DateTime(newstart), new DateTime(newstop));
-//        graphPanel1.setWindowCenter(xPosMs);
-//        graphPanel1.repaint();
-    }
-
-
-    // zoomFactor is a number between -1 and 1.
-    // Positive numbers zoom in, negative numbers zoom out.
-    private void zoomBy(int xPosPixels, double zoomFactor) {
-        long xPosMs = graphPanel1.getXPositionMs(xPosPixels);
-        long duration = graphPanel1.getWindowDurationMs();
-        long newDuration = (long)((double)duration/(1.0+zoomFactor));
-
-        // Set new duration
-        graphPanel1.setWindow(graphPanel1.getWindowStart().getMillis(),
-                graphPanel1.getWindowStart().getMillis() + newDuration);
-
-        graphPanel1.pinWindowToPoint(xPosMs, xPosPixels);
-
-        regenGraphPoints(graphPanel1.getWindowStart(),
-                graphPanel1.getWindowStart().plus(newDuration));
-
-        updateWindowLabel();
-    }
-
-    private void zoomOut(int xPosPixels) {
-        zoomBy(xPosPixels, -0.2);
-
-//        long start = graphPanel1.getWindowStart().getMillis();
-//        long stop = graphPanel1.getWindowStop().getMillis();
-//
-//        long newstart = start - (stop-start)/5;
-//        long newstop = stop + (stop-start)/5;
-//
-//        graphPanel1.setWindow(new DateTime(newstart), new DateTime(newstop));
-//        graphPanel1.setWindowCenter(xPosMs);
-//        graphPanel1.repaint();
     }
 
 //    private void regenGraphPointsOld(DateTime windowStart, DateTime windowStop) {
@@ -209,41 +160,67 @@ public class frmMain {
 //        graphPanel1.repaint();
 //    }
 
+    private boolean addPointToChannelPoints(List<Double> scores, List<Long> times, String chanName, DateTime time) {
+        return addPointToChannelPoints(scores, times, chanName, time, false);
+    }
+
+    private boolean addPointToChannelPoints(List<Double> scores, List<Long> times, String chanName,
+                                            DateTime time, boolean forceAdd) {
+        Double newScore = channelStateToDouble(chanName);
+
+        if (scores.size() > 0 && !forceAdd) {
+            Double oldScore = scores.get(scores.size() - 1);
+            if (oldScore.equals(newScore)) return false;
+        }
+        scores.add(newScore);
+        times.add(time.getMillis());
+        return true;
+    }
+
     private void regenGraphPoints(DateTime windowStart, DateTime windowStop) {
-        List<Double> scores = new ArrayList<>();
-        List<Long> times = new ArrayList<>();
+        List<Double> scores1 = new ArrayList<>();
+        List<Long> times1 = new ArrayList<>();
+        List<Double> scores2 = new ArrayList<>();
+        List<Long> times2 = new ArrayList<>();
+        List<Double> scores3 = new ArrayList<>();
+        List<Long> times3 = new ArrayList<>();
+        List<Double> scores4 = new ArrayList<>();
+        List<Long> times4 = new ArrayList<>();
         Interval window = new Interval(windowStart, windowStop);
         //Period pointPeriod = new Interval(windowStart.getMillis(), windowStart.getMillis() + window.toDurationMillis()/maxDataPoints).toPeriod();
         //update window to give a touch more scope
         //Interval pointWindow = new Interval(windowStart.minus(pointPeriod), windowStop.plus(pointPeriod));
 
-
-
-        RuleRunner.resetAll();
-        RuleRunner.disableAll();
-        Rules.getInstance().get("zzz").enable();
+        RuleRunner.resetAll(deploymentTime);
+        //RuleRunner.disableAll();
+        //Rules.getInstance().get("zzz").enable();
         RuleRunner.start(deploymentTime);
-        RuleRunner.printStatusToConsole(deploymentTime);
+//        RuleRunner.printStatusToConsole(deploymentTime);
         if (window.getStart().isAfter(deploymentTime)) {
             //RuleRunner.stepTo(window.getStart());
             RuleRunner.startGraph(window.getStart());
-            RuleRunner.printStatusToConsole(window.getStart());
+//            RuleRunner.printStatusToConsole(window.getStart());
         }
-        scores.add(channelStateToDouble("1"));
-        times.add(window.getStartMillis());
-        DateTime nextStateChange;
+        addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow());
+        addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow());
+        addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow());
+        addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow());
         do {
-            nextStateChange = RuleRunner.step();
-            RuleRunner.printStatusToConsole(nextStateChange);
-            scores.add(channelStateToDouble("1"));
-            times.add(nextStateChange.getMillis());
-        } while (nextStateChange.isBefore(window.getEnd()));
+            RuleRunner.step();
+//            RuleRunner.printStatusToConsole(nextStateChange);
+            addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow());
+            addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow());
+            addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow());
+            addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow());
+        } while (RuleRunner.getNow().isBefore(window.getEnd()));
 
         //Add one more so we fill the full graph.
-        nextStateChange = RuleRunner.step();
-        RuleRunner.printStatusToConsole(nextStateChange);
-        scores.add(channelStateToDouble("1"));
-        times.add(nextStateChange.getMillis());
+        RuleRunner.step();
+//        RuleRunner.printStatusToConsole(nextStateChange);
+        addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow(), true);
+        addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow(), true);
+        addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow(), true);
+        addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow(), true);
 
 
 //        Rule r = Rules.getInstance().get("Rule_1");
@@ -268,8 +245,10 @@ public class frmMain {
 //        scores.add(channelStateToDouble("1"));
 //        times.add(nextStateChange.getMillis());
 
-        graphPanel1.updateData(scores, times);
-        graphPanel1.repaint();
+        graphPanel1.getChannel(0).updateData(scores1, times1);
+        graphPanel1.getChannel(1).updateData(scores2, times2);
+        graphPanel1.getChannel(2).updateData(scores3, times3);
+        graphPanel1.getChannel(3).updateData(scores4, times4);
     }
 
     private double channelStateToDouble(String chanName) {
@@ -280,7 +259,7 @@ public class frmMain {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         JFrame frame = new JFrame("App");
         frame.setContentPane(new frmMain().panel1);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -327,8 +306,12 @@ public class frmMain {
         times.add(new DateTime().getMillis());
         scores.add(1.0);
         times.add(new DateTime().plusSeconds(1).getMillis());
-        graphPanel1 = new GraphPanel(scores, times);
+        graphPanel1 = new GraphPanel();
         graphPanel1.setPreferredSize(new Dimension(80, 60));
-
+        graphPanel1.addChannel("Channel 1", scores, times);
+        graphPanel1.addChannel("Channel 2", scores, times);
+        graphPanel1.addChannel("Channel 3", scores, times);
+        graphPanel1.addChannel("Channel 4", scores, times);
+        graphPanel1.setFullWindow();
     }
 }

@@ -27,5 +27,19 @@
         <SOURCES />
       </library>
     </orderEntry>
+    <orderEntry type="library" name="org.ocpsoft.prettytime:prettytime-integration-jstl:4.0.0.Final" level="project" />
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/jssc.jar!/" />
+        </CLASSES>
+        <JAVADOC>
+          <root url="jar://$MODULE_DIR$/lib/jssc-2.7.0-javadoc.jar!/javadoc" />
+        </JAVADOC>
+        <SOURCES>
+          <root url="jar://$MODULE_DIR$/lib/jssc-2.7.0-src.jar!/src" />
+        </SOURCES>
+      </library>
+    </orderEntry>
   </component>
 </module>

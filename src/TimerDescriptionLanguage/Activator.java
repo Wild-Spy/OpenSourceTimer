@@ -33,4 +33,15 @@ public class Activator {
     public boolean isInDefaultState() {
         return this.currentState == this.defaultState;
     }
+
+    public int getTargetId() {
+        if (this instanceof RuleActivator) {
+            return ((RuleActivator)this).getRule().getId();
+        } else if (this instanceof ChannelActivator) {
+            return ((ChannelActivator)this).getChannel().getId();
+        } else {
+            return -1;
+        }
+    }
+
 }

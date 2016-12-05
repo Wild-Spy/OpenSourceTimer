@@ -4,10 +4,16 @@ package TimerDescriptionLanguage;
  * Created by mcochrane on 17/11/16.
  */
 public class Channel {
-    ChannelState state;
+    private int id;
+    private ChannelState state;
 
     Channel(ChannelState initialState) {
+        this(Channels.getInstance().getChannels().size(), initialState);
+    }
+
+    Channel(int id, ChannelState initialState) {
         this.state = initialState;
+        this.id = id;
     }
 
     public void enable() {
@@ -22,4 +28,7 @@ public class Channel {
         return state;
     }
 
+    public int getId() {
+        return id;
+    }
 }

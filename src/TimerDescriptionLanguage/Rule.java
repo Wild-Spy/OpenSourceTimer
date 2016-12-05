@@ -1,6 +1,8 @@
 package TimerDescriptionLanguage;
 
+import min.SerialHandler;
 import org.joda.time.*;
+import org.joou.UByte;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,13 +11,15 @@ import java.util.List;
  * Created by mcochrane on 13/11/16.
  */
 public class Rule {
+    private int id = -1;
     private String name;
     private Action action;
     private List<PeriodInterval> intervals;
     private Period period;
     private boolean enabled;
+    private boolean enabledOnStart;
     //Internal Time Keeping Variables
-    private List<Interval> currentPeriodIntervals = null;
+    private List<Interval> currentIntervals = null;
     private DateTime startOfCurrentPeriod = null;
     private DateTime lastUpdateTime = null;
 
@@ -26,12 +30,14 @@ public class Rule {
         this.action = action;
         this.intervals = intervals;
         this.period = period;
+        this.enabledOnStart = enabled;
         this.enabled = enabled;
         this.name = name;
 
         //checkIntervalsValid();
 
         //Creating a rule automatically adds it to the Rules singleton.
+        id = Rules.getInstance().count();
         Rules.getInstance().add(this.name, this);
     }
 
@@ -47,6 +53,10 @@ public class Rule {
     public void disable() {
         this.enabled = false;
         action.stop(new DateTime());
+    }
+
+    public int getId() {
+        return id;
     }
 
     public RuleState getOutputState() {
@@ -134,7 +144,7 @@ public class Rule {
         long minDistanceToInterval = Long.MAX_VALUE;
         Interval closestInterval = null;
         //Find next interval
-        for (Interval interval : currentPeriodIntervals) {
+        for (Interval interval : currentIntervals) {
             long distanceToInterval = interval.getStartMillis() - lastUpdateTime.getMillis();
             if (distanceToInterval < minDistanceToInterval && distanceToInterval > 0) {
                 minDistanceToInterval = distanceToInterval;
@@ -149,7 +159,7 @@ public class Rule {
         long minDistanceToInterval = Long.MAX_VALUE;
         Interval closestInterval = null;
         //Find next interval
-        for (Interval interval : currentPeriodIntervals) {
+        for (Interval interval : currentIntervals) {
             long distanceToInterval = lastUpdateTime.getMillis() - interval.getEndMillis();
             if (distanceToInterval < minDistanceToInterval && distanceToInterval > 0) {
                 minDistanceToInterval = distanceToInterval;
@@ -160,7 +170,7 @@ public class Rule {
     }
 
     private Interval getCurrentInterval() {
-        for (Interval interval : currentPeriodIntervals) {
+        for (Interval interval : currentIntervals) {
             //Check if now is between calculated start/stop.
             if ((lastUpdateTime.isAfter(interval.getStart()) || lastUpdateTime.equals(interval.getStart()))
                     && lastUpdateTime.isBefore(interval.getEnd())) {
@@ -173,7 +183,7 @@ public class Rule {
     public void update(DateTime now) {
         boolean isActive = false;
         updateInternalTimeKeepingVariables(now);
-        for (Interval interval : currentPeriodIntervals) {
+        for (Interval interval : currentIntervals) {
             //Check if now is between calculated start/stop.
             if ((now.isAfter(interval.getStart()) || now.equals(interval.getStart()))
                     && now.isBefore(interval.getEnd())) {
@@ -192,6 +202,7 @@ public class Rule {
     public void reset() {
         resetInternalTimeKeepingVariables();
         action.stop(new DateTime());
+        //enabled = enabledOnStart;
     }
 
 //    private void checkIntervalsValid() throws InvalidIntervalException {
@@ -201,15 +212,15 @@ public class Rule {
 //    }
 
     private void updateCurrentPeriodIntervals() {
-        currentPeriodIntervals = new ArrayList<>();
+        currentIntervals = new ArrayList<>();
         for (PeriodInterval periodInterval : intervals) {
-            currentPeriodIntervals.add(periodInterval.toInterval(startOfCurrentPeriod));
+            currentIntervals.add(periodInterval.toInterval(startOfCurrentPeriod));
         }
     }
 
     private void resetInternalTimeKeepingVariables() {
         startOfCurrentPeriod = null;
-        currentPeriodIntervals = null;
+        currentIntervals = null;
         lastUpdateTime = null;
     }
 
@@ -263,6 +274,30 @@ public class Rule {
             startOfCurrentPeriod = now;
         }
     }
+
+    //Compile
+    private List<UByte> compile() {
+        List <UByte> compiledRule = new ArrayList<>();
+        compiledRule.addAll(action.compile());
+        compiledRule.addAll(PeriodCompilier.compilePeriod(period));
+        compiledRule.addAll(compileIntervals());
+
+
+        return compiledRule;
+    }
+
+    private List<UByte> compileIntervals() {
+        List<UByte> compiledIntervalsList = new ArrayList<>();
+
+        compiledIntervalsList.add(UByte.valueOf(intervals.size()));
+        for (PeriodInterval i : intervals) {
+            compiledIntervalsList.addAll(i.compile());
+        }
+
+        return compiledIntervalsList;
+    }
+
+
 
     //Package level access:
     Action getAction() {

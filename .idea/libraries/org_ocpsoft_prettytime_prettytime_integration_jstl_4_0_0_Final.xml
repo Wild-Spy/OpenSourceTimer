@@ -1,0 +1,18 @@
+<component name="libraryTable">
+  <library name="org.ocpsoft.prettytime:prettytime-integration-jstl:4.0.0.Final" type="repository">
+    <properties maven-id="org.ocpsoft.prettytime:prettytime-integration-jstl:4.0.0.Final" />
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/prettytime-integration-jstl-4.0.0.Final.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/prettytime-4.0.0.Final.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/jsp-api-2.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/servlet-api-2.5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/jstl-1.2.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/lib/prettytime-integration-jstl-4.0.0.Final-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/lib/prettytime-integration-jstl-4.0.0.Final-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

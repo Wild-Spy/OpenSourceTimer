@@ -4,6 +4,10 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.joda.time.Period;
 import org.joda.time.PeriodType;
+import org.joou.UByte;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by mcochrane on 14/11/16.
@@ -45,6 +49,14 @@ public class PeriodInterval {
             return false;
     }
 
+    List<UByte> compile() {
+        List<UByte> compiledPeriodList = new ArrayList<>();
+
+        compiledPeriodList.addAll(PeriodCompilier.compilePeriod(start));
+        compiledPeriodList.addAll(PeriodCompilier.compilePeriod(end));
+
+        return compiledPeriodList;
+    }
 
 //    private void fitsInPeriod(Period period) throws Rule.InvalidIntervalException {
 //        if (start.)

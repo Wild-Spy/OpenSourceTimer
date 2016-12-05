@@ -28,12 +28,14 @@ public class RuleParser {
 
     public static Rule parse(String text) throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
         String name = null;
+        boolean ruleIsEnabled = false;
 
         text = text.trim();
 
         if (text.contains(":")) {
             int ind = text.indexOf(":");
             name = text.substring(0, ind);
+            ruleIsEnabled = startsWithCapital(name);
             text = text.substring(ind+1);
         }
 
@@ -55,7 +57,11 @@ public class RuleParser {
 
         if (name == null) name = Rules.getInstance().getUniqueName();
 
-        return new Rule(name, action, intervals, period, false);
+        return new Rule(name, action, intervals, period, ruleIsEnabled);
+    }
+
+    private static boolean startsWithCapital(String s) {
+        return Character.isUpperCase(s.charAt(0));
     }
 
     private static Integer findIndexOfWordInList(String word, List<String> list) {

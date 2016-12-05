@@ -12,14 +12,17 @@ import org.joda.time.*;
 public class RuleRunner {
 
     private static DateTime startingTime;
+    private static DateTime currentGlobalTime;
+    private static DateTime deploymentTime;
 
     private RuleRunner() {}
 
-    public static void resetAll() {
+    public static void resetAll(DateTime deploymentTime) {
         for (Rule r : Rules.getInstance().getRules().values()) {
             r.reset();
         }
         startingTime = null;
+        RuleRunner.deploymentTime = deploymentTime;
     }
 
     public static void disableAll() {
@@ -28,10 +31,15 @@ public class RuleRunner {
         }
     }
 
+    public static DateTime getNow() {
+        return RuleRunner.currentGlobalTime;
+    }
+
     public static void stepTo(DateTime now) {
         for (Rule r : getActiveRuleList()) {
             r.update(now);
         }
+        RuleRunner.currentGlobalTime = now;
     }
 
     public static void start(DateTime startingTime) {
@@ -42,8 +50,9 @@ public class RuleRunner {
     public static void startGraph(DateTime now) {
         stepTo(now);
         DateTime calcStart = findOverallEarliestPreviousStateChangeTime();
+        if (calcStart.isBefore(RuleRunner.deploymentTime)) calcStart = deploymentTime;
         DateTime startingTime = RuleRunner.startingTime;
-        resetAll();
+        resetAll(deploymentTime);
         start(startingTime);
         stepTo(calcStart);
     }
@@ -78,6 +87,8 @@ public class RuleRunner {
 //                }
 //            }
 //        }
+
+        RuleRunner.currentGlobalTime = nextStateChangeTime;
 
         return nextStateChangeTime;
     }

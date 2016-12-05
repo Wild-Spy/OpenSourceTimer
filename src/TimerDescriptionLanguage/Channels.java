@@ -18,10 +18,10 @@ public class Channels {
     }
 
     private Channels() {
-        channels.put("1", new Channel(ChannelState.DISABLED));
-        channels.put("2", new Channel(ChannelState.DISABLED));
-        channels.put("3", new Channel(ChannelState.DISABLED));
-        channels.put("4", new Channel(ChannelState.DISABLED));
+        channels.put("1", new Channel(0, ChannelState.DISABLED));
+        channels.put("2", new Channel(1, ChannelState.DISABLED));
+        channels.put("3", new Channel(2, ChannelState.DISABLED));
+        channels.put("4", new Channel(3, ChannelState.DISABLED));
     }
 
     public Channel get(String name) {

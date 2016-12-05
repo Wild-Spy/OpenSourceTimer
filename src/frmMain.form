@@ -51,7 +51,7 @@
                   </grid>
                 </constraints>
                 <properties>
-                  <text value="aaa: enable channel 1 for 1 hour every 2 hours&#10;zzz: enable rule aaa on the 1st, 5th, 10th, 11th, 12th, 15th day of every month"/>
+                  <text value="aaa: enable channel 1 for 1 hour every 2 hours&#10;Zzz: enable rule aaa on the 1st, 5th, 10th, 11th, 12th, 15th day of every month&#10;Bbb: enable channel 2 for 1 hour every 2 hours"/>
                 </properties>
               </component>
               <component id="73521" class="javax.swing.JButton" binding="btnReparse">
@@ -83,12 +83,12 @@
         <properties/>
         <border type="none"/>
         <children>
-          <component id="e6e93" class="javax.swing.JButton" binding="btnZoomIn">
+          <component id="e6e93" class="javax.swing.JButton" binding="btnUploadToDev">
             <constraints>
               <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
             </constraints>
             <properties>
-              <text value="+"/>
+              <text value="Upload to Dev"/>
             </properties>
           </component>
           <component id="d6c7a" class="javax.swing.JLabel" binding="lblInfo">
@@ -99,12 +99,12 @@
               <text value="&lt;html&gt;lalalal&lt;br&gt;aaaaa&lt;/html&gt;"/>
             </properties>
           </component>
-          <component id="4ee80" class="javax.swing.JButton" binding="btnZoomOut">
+          <component id="4ee80" class="javax.swing.JButton" binding="btnConnectToDev">
             <constraints>
               <grid row="2" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
             </constraints>
             <properties>
-              <text value="-"/>
+              <text value="Connect To Dev"/>
             </properties>
           </component>
         </children>

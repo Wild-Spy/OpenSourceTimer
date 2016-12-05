@@ -1,6 +1,11 @@
 package TimerDescriptionLanguage;
 
+import min.SerialHandler;
 import org.joda.time.DateTime;
+import org.joou.UByte;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by mcochrane on 13/11/16.
@@ -50,6 +55,42 @@ public class Action {
 
     public ActivatorState getActivatorState() {
         return activator.getState();
+    }
+
+    public static int ACTION_TARGET_CHANNEL = 0;
+    public static int ACTION_TARGET_RULE = 1;
+
+    //For compiling
+    private int getActionTargetType() {
+        if (activator instanceof RuleActivator) {
+            return ACTION_TARGET_RULE;
+        } else if (activator instanceof ChannelActivator) {
+            return ACTION_TARGET_CHANNEL;
+        } else {
+            return -1;
+        }
+    }
+
+    private UByte compileDefaultState() {
+        if (activator.getDefaultState().equals(ActivatorState.DISABLED)) {
+            return UByte.valueOf(0);
+        } else if (activator.getDefaultState().equals(ActivatorState.ENABLED)) {
+            return UByte.valueOf(1);
+        } else {
+            return UByte.valueOf(255);
+        }
+    }
+
+    List<UByte> compile() {
+        List <UByte> compiledAction = new ArrayList<>();
+        int targetType = getActionTargetType();
+        if (targetType == -1) throw new Error("Invalid Target Type!");
+
+        compiledAction.add(UByte.valueOf(targetType));
+        compiledAction.addAll(SerialHandler.min_encode_16((short)activator.getTargetId()));
+        compiledAction.add(compileDefaultState());
+
+        return compiledAction;
     }
 
     //Package private (for unit testing)
