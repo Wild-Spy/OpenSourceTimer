@@ -85,7 +85,7 @@ public class Frame {
     /**
      * Transmit this through the assigned serial handler
      */
-    private void transmit() {
+    public void transmit() {
         this.handler.send_queue.add(this.get_bytes());
     }
 

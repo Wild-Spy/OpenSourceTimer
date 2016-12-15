@@ -53,6 +53,12 @@ public final class TimeHelper {
                 PeriodType.years());
     }
 
+    public static Period makePeriodCustom(int quantity, PeriodType type) {
+        new Period()
+        return new Period(Period.years(years),
+                PeriodType.years());
+    }
+
 
 
     //PeriodIntervals

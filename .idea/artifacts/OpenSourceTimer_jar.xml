@@ -1,0 +1,18 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="OpenSourceTimer:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/OpenSourceTimer_jar</output-path>
+    <root id="archive" name="OpenSourceTimer.jar">
+      <element id="module-output" name="OpenSourceTimer" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jssc.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/joda-time-2.9.4.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/prettytime-integration-jstl-4.0.0.Final.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/prettytime-4.0.0.Final.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jsp-api-2.1.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/servlet-api-2.5.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jstl-1.2.jar" path-in-jar="/" />
+      <element id="file-copy" path="$PROJECT_DIR$/lib/jssc.jar" />
+      <element id="library" level="project" name="joda-time:joda-time:2.9.4" />
+      <element id="library" level="project" name="org.ocpsoft.prettytime:prettytime-integration-jstl:4.0.0.Final" />
+    </root>
+  </artifact>
+</component>

@@ -276,7 +276,7 @@ public class Rule {
     }
 
     //Compile
-    private List<UByte> compile() {
+    public List<UByte> compile() {
         List <UByte> compiledRule = new ArrayList<>();
         compiledRule.addAll(action.compile());
         compiledRule.addAll(PeriodCompilier.compilePeriod(period));

@@ -113,5 +113,14 @@ public class PeriodParserTest {
         assertEquals(p, TimeHelper.makePeriodHours(24));
     }
 
+    @Test
+    public void testParseMinutesAndSeconds() throws Exception {
+        Period p = PeriodParser.parse("three minutes and 24 seconds");
+
+        TimeHelper.makePeriodMinutes()
+
+        assertEquals(p, TimeHelper.makePeriodHours(24));
+    }
+
 
 }

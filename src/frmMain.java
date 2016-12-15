@@ -7,6 +7,7 @@ import min.*;
 import min.Frame;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
+import org.joou.UByte;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -33,20 +34,65 @@ public class frmMain {
 
     //private zoomLevel
 
+    private void txRule(List<UByte> compiledRule) {
+        List<UByte> data;
+        //Tx Start Frame
+        data = new ArrayList<>();
+        data.addAll(SerialHandler.min_encode_16((short)compiledRule.size()));
+        Frame startFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x03), data);
+        startFrame.transmit();
+
+        int startIndex = 0;
+        while (startIndex < compiledRule.size()) {
+            int endIndex = startIndex + 32;
+            if (endIndex > compiledRule.size()) endIndex = compiledRule.size();
+            data = compiledRule.subList(startIndex, endIndex);
+            Frame part = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x04), data);
+            part.transmit();
+            startIndex += 32;
+        }
+
+        data = new ArrayList<>();
+        data.add(UByte.valueOf(0));
+        Frame endFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x05), data);
+        endFrame.transmit();
+    }
+
     public frmMain() throws SerialPortException {
         btnUploadToDev.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
-//                btnUploadToDev.setText("Changed!!");
-//                JOptionPane.showMessageDialog(null, "Hello World");
-                //zoomIn();
+
+//                List<UByte> data = new ArrayList<>();
+//                data.add(UByte.valueOf(1));
+//                data.add(UByte.valueOf(5));
+//                data.add(UByte.valueOf(2));
+//                Frame pingFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x02), data); //ping
+//                pingFrame.transmit();
+//                return;
+
+                List<List<UByte>> allCompiled = Rules.getInstance().getAllCompiled();
+                for (List<UByte> r : allCompiled) {
+                    txRule(r);
+                }
             }
         });
 
         btnConnectToDev.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
-                //zoomOut();
+                String[] portNames = SerialPortList.getPortNames();
+                System.out.println("Serial Port Names:");
+                for (String name : portNames) {
+                    System.out.println(name);
+                }
+                if (portNames.length > 0) {
+                    try {
+                        serialHandler = new SerialHandler(portNames[0], 115200, new SerialReceivedFrameHandler());
+                    } catch (SerialPortException e) {
+                        System.out.println("Couldn't connect to device");
+                    }
+                }
             }
         });
 
@@ -97,33 +143,19 @@ public class frmMain {
                 Rules.resetInstance();
                 try {
                     List<Rule> r = RuleParser.parseMultiple(txtRules.getText());
-//                    Rule r = RuleParser.parse(txtRules.getText());
-//                    r.enable();
-                    //enable the last rule
-                    //r.get(r.size()-1).enable();
                 } catch (Exception ex) {
                     System.out.println("error!");
                     ex.printStackTrace();
                 }
-                //graphPanel1.setFullWindow();
                 regenGraphPoints(graphPanel1.getWindowStart(),
                         graphPanel1.getWindowStop());
             }
         });
 
         //btnReparse.doClick();
-
-        String[] portNames = SerialPortList.getPortNames();
-        System.out.println("Serial Port Names:");
-        for (String name : portNames) {
-            System.out.println(name);
-        }
-        if (portNames.length > 0) {
-            serialHandler = new SerialHandler(portNames[0], 115200, new SerialReceivedFrameHandler());
-        }
     }
 
-    class SerialReceivedFrameHandler implements ReceivedFrameHandler {
+    private class SerialReceivedFrameHandler implements ReceivedFrameHandler {
         @Override
         public void handleReceivedFrame(Frame frame) {
             System.out.println(frame.toString());
@@ -134,31 +166,6 @@ public class frmMain {
         lblInfo.setText("<html>" + graphPanel1.getWindowStart().toString("dd/MM/yyyy HH:mm:ss") + "<br>" +
                         graphPanel1.getWindowStop().toString("dd/MM/yyyy HH:mm:ss") + "</html>");
     }
-
-//    private void regenGraphPointsOld(DateTime windowStart, DateTime windowStop) {
-//        List<Double> scores = new ArrayList<>();
-//        List<Long> times = new ArrayList<>();
-//        int maxDataPoints = 400;
-//        Interval window = new Interval(windowStart, windowStop);
-//        Period pointPeriod = new Interval(windowStart.getMillis(), windowStart.getMillis() + window.toDurationMillis()/maxDataPoints).toPeriod();
-//        //update window to give a touch more scope
-//        window = new Interval(windowStart.minus(pointPeriod), windowStop.plus(pointPeriod));
-//
-//        RuleRunner.resetAll();
-//        DateTime simulatedNow = window.getStart();
-//        for (int i = 0; i < maxDataPoints+4; i++) {
-//            RuleRunner.run(simulatedNow);
-//            times.add(simulatedNow.getMillis());
-//            if (Channels.getInstance().get("1").getState() == ChannelState.DISABLED) {
-//                scores.add(0.0);
-//            } else {
-//                scores.add(1.0);
-//            }
-//            simulatedNow = simulatedNow.plus(pointPeriod);
-//        }
-//        graphPanel1.updateData(scores, times);
-//        graphPanel1.repaint();
-//    }
 
     private boolean addPointToChannelPoints(List<Double> scores, List<Long> times, String chanName, DateTime time) {
         return addPointToChannelPoints(scores, times, chanName, time, false);
@@ -222,29 +229,6 @@ public class frmMain {
         addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow(), true);
         addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow(), true);
 
-
-//        Rule r = Rules.getInstance().get("Rule_1");
-//        r.reset();
-//        r.update(deploymentTime);
-//        if (window.getStart().isAfter(deploymentTime)) {
-//            r.update(window.getStart());
-//        }
-//        scores.add(channelStateToDouble("1"));
-//        times.add(window.getStart().getMillis());
-//        DateTime nextStateChange = r.getNextStateChangeTime();
-//
-//        do {
-//            r.update(nextStateChange);
-//            scores.add(channelStateToDouble("1"));
-//            times.add(nextStateChange.getMillis());
-//            nextStateChange = r.getNextStateChangeTime();
-//        } while (nextStateChange.isBefore(window.getEnd()));
-
-//        //Add one more so we fill the full graph.
-//        r.update(nextStateChange);
-//        scores.add(channelStateToDouble("1"));
-//        times.add(nextStateChange.getMillis());
-
         graphPanel1.getChannel(0).updateData(scores1, times1);
         graphPanel1.getChannel(1).updateData(scores2, times2);
         graphPanel1.getChannel(2).updateData(scores3, times3);
@@ -271,37 +255,7 @@ public class frmMain {
 //        Random random = new Random();
         List<Double> scores = new ArrayList<>();
         List<Long> times = new ArrayList<>();
-//        int maxDataPoints = 400;
-//        int maxScore = 10;
-//        DateTime pointTime = new DateTime();
-//        for (int i = 0; i < maxDataPoints; i++) {
-//            scores.add(((double) ((int) (random.nextDouble()+0.5)) * maxScore));
-//            pointTime = pointTime.plusSeconds(random.nextInt(100-1)+1);
-//            times.add(pointTime.getMillis());
-//        }
-//        graphPanel1 = new GraphPanel(scores, times);
-//        graphPanel1.setPreferredSize(new Dimension(80, 60));
 
-//        try {
-//            //Rule r = RuleParser.parse(this.txtRules.getText());
-//            Rule r = RuleParser.parse("enable channel 1 for one hour every 2 days");
-//            r.enable();
-//        } catch (Exception ex) {
-//            System.out.println("error!");
-//            ex.printStackTrace();
-//        }
-//
-//        DateTime simulatedNow = new DateTime();
-//        for (int i = 0; i < maxDataPoints; i++) {
-//            RuleRunner.run(simulatedNow);
-//            times.add(simulatedNow.getMillis());
-//            if (Channels.getInstance().get("1").getState() == ChannelState.DISABLED) {
-//                scores.add(0.0);
-//            } else {
-//                scores.add(1.0);
-//            }
-//            simulatedNow = simulatedNow.plusMinutes(15);
-//        }
         scores.add(0.0);
         times.add(new DateTime().getMillis());
         scores.add(1.0);

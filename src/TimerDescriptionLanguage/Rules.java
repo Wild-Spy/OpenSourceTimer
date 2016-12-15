@@ -1,6 +1,10 @@
 package TimerDescriptionLanguage;
 
+import org.joou.UByte;
+
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,6 +53,14 @@ public class Rules {
         return name;
     }
 
+    public List<List<UByte>> getAllCompiled() {
+        List<List<UByte>> retLst = new ArrayList<>();
+        for (Rule r : rules.values()) {
+            retLst.add(r.compile());
+        }
+        return retLst;
+    }
+
     private String makeName(int number) {
         return "Rule_" + String.valueOf(number);
     }
@@ -56,5 +68,7 @@ public class Rules {
     Map<String, Rule> getRules() {
         return rules;
     }
+
+
 
 }
