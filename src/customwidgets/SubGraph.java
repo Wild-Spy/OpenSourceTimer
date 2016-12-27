@@ -11,21 +11,33 @@ import java.util.List;
 /**
  * Created by mcochrane on 22/11/16.
  */
-public class GraphChannel {
+public class SubGraph {
     private List<Double> scores;
     private List<Long> times;
-    private String name;
+    private String channelName;
     private GraphPanel parentGraph;
-    private int chanNumber;
+    private int plotIndex;
+    private String graphLabel;
     private List<GraphIntervalMarker> intervalMarkers = new ArrayList<>();
     private List<Block> blocks = new ArrayList<>();
+    private long cursorLocation;
+    private boolean showCursor = false;
+    private Color cursorColor;
 
-    GraphChannel(GraphPanel parentGraph, String name, int chanNumber, List<Double> scores, List<Long> times) {
+    SubGraph(GraphPanel parentGraph, String channelName, int chanNumber, List<Double> scores, List<Long> times) {
+        this(parentGraph, chanNumber,
+                "Channel " + String.valueOf(chanNumber + 1),
+                scores, times);
+        this.channelName = channelName;
+    }
+
+    SubGraph(GraphPanel parentGraph, int plotIndex, String label, List<Double> scores, List<Long> times) {
         this.scores = scores;
         this.times = times;
         this.parentGraph = parentGraph;
-        this.name = name;
-        this.chanNumber = chanNumber;
+        this.channelName = "";
+        this.plotIndex = plotIndex;
+        this.graphLabel = label;
         intervalMarkers.add(new GraphIntervalMarker(this, new Interval(
                 new DateTime(2017, 1, 1, 0, 0), new DateTime(2017, 3, 1, 0, 0)
         )));
@@ -37,21 +49,21 @@ public class GraphChannel {
         redrawParent();
     }
 
-    public void rename(String name) {
-        this.name = name;
+    public void changeChannelName(String name) {
+        this.channelName = name;
         redrawParent();
     }
 
-    public String getName() {
-        return this.name;
+    public String getChannelName() {
+        return this.channelName;
     }
 
-    public void setChanNumber(int chanNumber) {
-        this.chanNumber = chanNumber;
+    public void setPlotIndex(int plotIndex) {
+        this.plotIndex = plotIndex;
     }
 
-    public int setChanNumber() {
-        return this.chanNumber;
+    public int setPlotIndex() {
+        return this.plotIndex;
     }
 
     GraphPanel getParentGraph() {
@@ -67,8 +79,8 @@ public class GraphChannel {
         return new Long[]{times.get(0), times.get(times.size()-1)};
     }
 
-    int getChanNumber() {
-        return this.chanNumber;
+    int getPlotIndex() {
+        return this.plotIndex;
     }
 
     private class Block {
@@ -195,17 +207,18 @@ public class GraphChannel {
                 drawLineOrStartBlock(g2, p1, p2, p2Index);
             }
         }
-
     }
 
     void drawChannelData(Graphics2D g2) {
-
         //draw background
         drawChannelBackground(g2);
+
+        drawCursor(g2);
 
         int startIndex = getFirstVisiblePoint();
         if (startIndex >= scores.size()) return;
         int endIndex = getLastVisiblePoint();
+        if (endIndex == 0) return;
 
         blocks = new ArrayList<>();
         BlockParser blockParser = new BlockParser(endIndex, blocks);
@@ -230,6 +243,18 @@ public class GraphChannel {
         for (GraphIntervalMarker im : intervalMarkers) {
             im.drawIfFullyVisible(g2);
         }
+
+    }
+
+    private void drawCursor(Graphics2D g2) {
+        int x0 = parentGraph.getXPositionPixel(cursorLocation);
+        int y0 = (int)getGraphArea().getMinY() + GraphPanel.channelMeasurementBarHeight;
+        int y1 = (int)getGraphArea().getMaxY();
+
+        Color oldColor = g2.getColor();
+        g2.setColor(cursorColor);
+        g2.drawLine(x0, y0, x0, y1);
+        g2.setColor(oldColor);
     }
 
     private void drawChannelBackground(Graphics2D g2) {
@@ -255,14 +280,14 @@ public class GraphChannel {
 
     private Rectangle getGraphBackgroundRectangle() {
         return new Rectangle(GraphPanel.leftPanelWidth,
-                GraphPanel.timeBarHeight + GraphPanel.channelHeight * chanNumber + GraphPanel.channelMeasurementBarHeight,
+                GraphPanel.timeBarHeight + GraphPanel.channelHeight * plotIndex + GraphPanel.channelMeasurementBarHeight,
                 parentGraph.getWidth() - GraphPanel.leftPanelWidth,
                 GraphPanel.channelHeight - GraphPanel.channelMeasurementBarHeight);
     }
 
     private Rectangle getGraphArea() {
         return new Rectangle(GraphPanel.leftPanelWidth,
-                GraphPanel.timeBarHeight + GraphPanel.channelHeight * chanNumber,
+                GraphPanel.timeBarHeight + GraphPanel.channelHeight * plotIndex,
                 parentGraph.getWidth() - GraphPanel.leftPanelWidth,
                 GraphPanel.channelHeight);
     }
@@ -294,7 +319,7 @@ public class GraphChannel {
     }
 
     private int getYValue(Double chanScore) {
-        int y0 = GraphPanel.timeBarHeight + GraphPanel.channelHeight * chanNumber + GraphPanel.channelMeasurementBarHeight;
+        int y0 = GraphPanel.timeBarHeight + GraphPanel.channelHeight * plotIndex + GraphPanel.channelMeasurementBarHeight;
         int activeChanHeight = GraphPanel.channelHeight - GraphPanel.channelMeasurementBarHeight;
 
         if (chanScore.equals(1.0)) {
@@ -333,7 +358,7 @@ public class GraphChannel {
                 return Math.min(i+1, scores.size()-1);
             }
         }
-        return scores.size();
+        return 0;
     }
 
     private void drawSegmentStraightLine(Graphics2D g2, Point p1, Point p2) {
@@ -341,6 +366,7 @@ public class GraphChannel {
     }
 
     private void drawSegmentPreStep(Graphics2D g2, Point p1, Point p2) {
+        if (p2.x > this.parentGraph.getWidth()) p2.x = this.parentGraph.getWidth();
         g2.drawLine(p1.x, p1.y, p2.x, p1.y);
         g2.drawLine(p2.x, p1.y, p2.x, p2.y);
     }
@@ -354,7 +380,7 @@ public class GraphChannel {
         Color gradientStart = new Color(75, 75, 75);
         Color gradientEnd = new Color(60, 60, 60);
 
-        Rectangle chanBox = new Rectangle(0, GraphPanel.timeBarHeight + GraphPanel.channelHeight * chanNumber, GraphPanel.leftPanelWidth, GraphPanel.channelHeight);
+        Rectangle chanBox = new Rectangle(0, GraphPanel.timeBarHeight + GraphPanel.channelHeight * plotIndex, GraphPanel.leftPanelWidth, GraphPanel.channelHeight);
 
         GradientPaint gp = new GradientPaint(new Point(0, chanBox.y), gradientStart,
                 new Point(0, (int)chanBox.getMaxY()), gradientEnd);
@@ -365,11 +391,10 @@ public class GraphChannel {
         g2.draw(chanBox);
 
         g2.setColor(new Color(145, 145, 145));
-        String channelName = "Channel " + String.valueOf(chanNumber + 1);
         FontMetrics metrics = g2.getFontMetrics();
         //int labelWidth = metrics.stringWidth(channelName);
         //g2.drawString(channelName, x0 - labelWidth / 2, y0 + (metrics.getHeight() + 3)*2);
-        g2.drawString(channelName, 10, chanBox.y + metrics.getHeight() + 3);
+        g2.drawString(graphLabel, 10, chanBox.y + metrics.getHeight() + 3);
 
         //draw on/off markers
         int yOn = getYValue(1.0);
@@ -432,6 +457,8 @@ public class GraphChannel {
     }
 
     void mouseMoved(MouseEvent mouseEvent) {
+        updateCursor(mouseEvent);
+
         if (isMouseInBounds(mouseEvent)) {
             mouseMoved(parentGraph.getXPosition(mouseEvent.getX()));
         } else {
@@ -439,8 +466,38 @@ public class GraphChannel {
         }
     }
 
+    private void updateCursor(MouseEvent mouseEvent) {
+        if (!isMouseInXBounds(mouseEvent)) {
+            this.showCursor = false;
+            return;
+        }
+
+        DateTime mouseTime = parentGraph.getXPosition(mouseEvent.getX());
+        updateCursor(mouseTime, isMouseInYBounds(mouseEvent));
+    }
+
+    private void updateCursor(DateTime mouseTime, boolean mouseInThisGraph) {
+        this.showCursor = true;
+        this.cursorLocation = mouseTime.getMillis();
+        if (mouseInThisGraph) {
+            this.cursorColor = new Color(145, 145, 145);
+        } else {
+            this.cursorColor = new Color(41, 41, 41);
+        }
+    }
+
     private boolean isMouseInBounds(MouseEvent mouseEvent) {
         return getGraphArea().contains(mouseEvent.getPoint());
+    }
+
+    private boolean isMouseInXBounds(MouseEvent mouseEvent) {
+        return (mouseEvent.getPoint().getX() >= getGraphArea().getMinX()) &&
+                (mouseEvent.getPoint().getX() <= getGraphArea().getMaxX());
+    }
+
+    private boolean isMouseInYBounds(MouseEvent mouseEvent) {
+        return (mouseEvent.getPoint().getY() >= getGraphArea().getMinY()) &&
+                (mouseEvent.getPoint().getY() <= getGraphArea().getMaxY());
     }
 
     private void mouseMoved(DateTime mouseTime) {

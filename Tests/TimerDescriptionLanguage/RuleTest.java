@@ -34,7 +34,7 @@ public class RuleTest {
 
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
-                intervals, new Period(Period.months(1), PeriodType.months()), false);
+                intervals, new Period(Period.months(1), PeriodType.months()), true);
 
         r.update(new DateTime(2016, 3, 1, 10, 0, 0));
         assertEquals(r.getOutputState(), RuleState.ACTIVE);
@@ -50,7 +50,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.onDays(1, 7),
-                TimeHelper.makePeriodMonths(1), false);
+                TimeHelper.makePeriodMonths(1), true);
 
         r.update(new DateTime(2016, 3, 1, 10, 0, 0));
         assertEquals(r.getOutputState(), RuleState.ACTIVE);
@@ -71,7 +71,7 @@ public class RuleTest {
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.join(TimeHelper.betweenSeconds(10, 20),
                         TimeHelper.onMinutes(3, 4)),
-                TimeHelper.makePeriodMinutes(5), false);
+                TimeHelper.makePeriodMinutes(5), true);
 
         //First Period
         r.update(new DateTime(2016, 1, 1, 0, 0, 0));
@@ -97,7 +97,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.betweenSeconds(10, 20),
-                TimeHelper.makePeriodMinutes(5), false);
+                TimeHelper.makePeriodMinutes(5), true);
 
         r.update(new DateTime(2016, 1, 1, 0, 0,  0));
         assertEquals(r.getOutputState(), RuleState.INACTIVE);
@@ -137,7 +137,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.betweenMinutes(10, 20),
-                TimeHelper.makePeriodHours(5), false);
+                TimeHelper.makePeriodHours(5), true);
 
         r.update(new DateTime(2016, 1, 1, 0,  0,  0));
         assertEquals(r.getOutputState(), RuleState.INACTIVE);
@@ -177,7 +177,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.betweenHours(10, 20),
-                TimeHelper.makePeriodDays(5), false);
+                TimeHelper.makePeriodDays(5), true);
 
         r.update(new DateTime(2016, 1, 1,  0,  0,  0));
         assertEquals(r.getOutputState(), RuleState.INACTIVE);
@@ -228,7 +228,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.betweenDays(10, 20),
-                TimeHelper.makePeriodMonths(5), false);
+                TimeHelper.makePeriodMonths(5), true);
 
         r.update(new DateTime(2016, 1,  1,  0,  0,  0));
         assertEquals(r.getOutputState(), RuleState.INACTIVE);
@@ -273,7 +273,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.betweenWeeks(2, 4),
-                TimeHelper.makePeriodMonths(5), false);
+                TimeHelper.makePeriodMonths(5), true);
 
         r.update(new DateTime(2016, 1,  1,  0,  0,  0));
         assertEquals(r.getOutputState(), RuleState.INACTIVE);
@@ -318,7 +318,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.betweenMonths(2, 4),
-                TimeHelper.makePeriodYears(5), false);
+                TimeHelper.makePeriodYears(5), true);
 
         r.update(new DateTime(2016, 1,  20,  0,  0,  0)); //Shouldn't matter when we start in the month.
         assertEquals(r.getOutputState(), RuleState.INACTIVE);
@@ -390,7 +390,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.onDays(3, 4, 5),
-                TimeHelper.makePeriodMonths(1), false);
+                TimeHelper.makePeriodMonths(1), true);
 
         r.update(new DateTime(2016, 1, 1,  0,  0,  0));
         assertEquals(r.getOutputState(), RuleState.INACTIVE);
@@ -414,7 +414,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.betweenHours(0, 1),
-                TimeHelper.makePeriodHours(2), false);
+                TimeHelper.makePeriodHours(2), true);
 
         DateTime nextUpdate;
 
@@ -443,7 +443,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.betweenMinutes(0, 1),
-                TimeHelper.makePeriodMinutes(3), false);
+                TimeHelper.makePeriodMinutes(3), true);
 
         DateTime nextUpdate;
 
@@ -472,7 +472,7 @@ public class RuleTest {
 
         Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
                 TimeHelper.onDays(3, 5, 6, 10),
-                TimeHelper.makePeriodMonths(1), false);
+                TimeHelper.makePeriodMonths(1), true);
 
         DateTime nextUpdate;
 
@@ -524,6 +524,111 @@ public class RuleTest {
         r.update(nextUpdate);
         assertEquals(nextUpdate, new DateTime(2016, 2, 3, 0, 0, 0));
         assertEquals(r.getOutputState(), RuleState.ACTIVE);
+    }
+
+    @Test
+    public void testInfiniteLengthRule() throws Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Activator chAct = new ChannelActivator("1", ActivatorState.DISABLED);
+
+        Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
+                TimeHelper.betweenHours(0, 1),
+                TimeHelper.infinitePeriod(), true);
+
+        r.update(new DateTime(2016, 1,  20,  0,  0,  0)); //Shouldn't matter when we start in the month.
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 1,  20,  0,  0,  0, 1));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 1,  20,  0, 59, 59, 999));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 1,  20,  1,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 2,  13, 20, 32,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(99999,1,   1,  0,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+    }
+
+    @Test
+    public void testRuleWithStart() throws Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Activator chAct = new ChannelActivator("1", ActivatorState.DISABLED);
+
+        Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
+                TimeHelper.betweenHours(0, 1),
+                TimeHelper.makePeriodDays(1), true,
+                new DateTime(2016, 2, 1, 10, 0, 0));
+
+        r.update(new DateTime(2016, 1,  20,  0,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 2,   1,  9, 59, 59, 999));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 2,   1, 10,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 2,   1, 10,  59,  59, 999));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 2,   1, 11,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+
+        r.update(new DateTime(2016, 3,   1,  9, 59, 59, 999));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 3,   1, 10,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 3,   1, 10,  59,  59, 999));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 3,   1, 11,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+    }
+
+    @Test
+    public void testRuleWithStartNoAlign() throws Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Activator chAct = new ChannelActivator("1", ActivatorState.DISABLED);
+
+        Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
+                TimeHelper.betweenHours(0, 1),
+                TimeHelper.makePeriodDays(1), true,
+                new DateTime(2016, 2, 1, 10, 30, 30));
+
+        r.update(new DateTime(2016, 1,  20,  0,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 2,   1, 10, 29, 29, 999));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 2,   1, 10, 30, 30));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 2,   1, 11, 29, 29, 999));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 2,   1, 11, 30, 30));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+
+        r.update(new DateTime(2016, 3,   1, 10, 29, 29, 999));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 3,   1, 10, 30, 30));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 3,   1, 11, 29, 29, 999));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 3,   1, 11, 30, 30));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+    }
+
+    @Test
+    public void testRuleWithStartAndInfiniteLength() throws Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Activator chAct = new ChannelActivator("1", ActivatorState.DISABLED);
+
+        Rule r = new Rule("Test", new Action(ActivatorState.ENABLED, chAct),
+                TimeHelper.betweenHours(0, 1),
+                TimeHelper.infinitePeriod(), true,
+                new DateTime(2016, 2, 1, 10, 0, 0));
+
+        r.update(new DateTime(2016, 1,  20,  0,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 2,   1,  9, 59, 59, 999));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(2016, 2,   1, 10,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 2,   1, 10,  59,  59, 999));
+        assertEquals(r.getOutputState(), RuleState.ACTIVE);
+        r.update(new DateTime(2016, 2,   1, 11,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
+        r.update(new DateTime(99999,1,   1,  0,  0,  0));
+        assertEquals(r.getOutputState(), RuleState.INACTIVE);
     }
 
 //    @Test

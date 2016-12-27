@@ -17,7 +17,7 @@ public class RuleActivator extends Activator {
     public void enable(DateTime now) {
         super.enable(now);
         target.enable();
-        target.update(now);
+        target.updateThisRuleAndParentsIfNecessary(now);
     }
 
     @Override

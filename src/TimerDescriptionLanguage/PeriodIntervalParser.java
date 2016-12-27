@@ -1,5 +1,8 @@
 package TimerDescriptionLanguage;
 
+import org.joda.time.LocalTime;
+import org.joda.time.Period;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -10,6 +13,10 @@ import java.util.List;
 public class PeriodIntervalParser {
 
     public static List<PeriodInterval> parse(String text) throws InvalidSyntaxException {
+        return parse(text, null);
+    }
+
+    public static List<PeriodInterval> parse(String text, Period period) throws InvalidSyntaxException {
         text = text.toLowerCase().trim();
         if (text.startsWith("for ")) {
             return parseFor(text);
@@ -51,7 +58,7 @@ public class PeriodIntervalParser {
 
         List<String> words = new ArrayList<>();
         words.addAll(Arrays.asList(text.split(" ")));
-        String periodType;
+        String periodType = null;
         boolean periodTypeMustBePlural = false;
 
         if (isValidPeriodType(words.get(0))) {
@@ -64,9 +71,9 @@ public class PeriodIntervalParser {
             periodType = words.get(words.size()-1);
             periodTypeMustBePlural = true;
             words.remove(words.size()-1);
-        } else {
-            //TODO: is it implicit? i.e. 'between March and June', 'between the 1st and the 8th'?
-            throw new InvalidSyntaxException(text, 0, "period type not found");
+//        } else {
+//            //TODO: is it implicit? i.e. 'between March and June', 'between the 1st and the 8th'?, 'between 9am and 5pm'
+//            throw new InvalidSyntaxException(text, 0, "period type not found");
         }
 
         String fromStr = null;
@@ -84,6 +91,14 @@ public class PeriodIntervalParser {
         //if we didn't find an 'and'
         if (fromStr == null) {
             throw new InvalidSyntaxException(text, 0, "Between statement had no 'and'.  Between what and what?");
+        }
+
+        if (periodType == null) {
+            List<PeriodInterval> result = tryParseBetweenTimeOfDay(fromStr, toStr);
+            if (result != null) return result;
+
+
+            throw new InvalidSyntaxException(text, 0, "period type not found");
         }
 
         //actually do the parsing
@@ -104,6 +119,36 @@ public class PeriodIntervalParser {
         }
         return makeIntervalFromType(periodType, fromResult.value, toResult.value, false);
     }
+
+    private static List<PeriodInterval> tryParseBetweenTimeOfDay(String fromStr, String toStr) {
+        LocalTime fromTime;
+        LocalTime toTime;
+        try {
+            fromTime = TimeParser.parse(fromStr);
+            toTime = TimeParser.parse(toStr);
+            return TimeHelper.betweenTimesOfDay(fromTime, toTime);
+        } catch (InvalidSyntaxException ex) {
+            return null;
+        }
+    }
+
+//    private static boolean isBetweenTwoTimesHours(List<String> words) {
+//        //9am and 5pm, etc.
+//        //nine thirty am and 10pm
+//        LocalTime time1 = null;
+//        LocalTime time2 = null;
+//
+//        if (words.size() < 3) return false;
+//        for (int i = 1; i < words.size()-1; i++) {
+//            String part1 = String.join(" ", words.subList(0, i));
+//            String part2 = String.join(" ", words.subList(i+1, words.size()));
+//            try {
+//                time1 = TimeParser.parse(part1);
+//                time2 = TimeParser.parse(part2);
+//            } catch (InvalidSyntaxException ex) {
+//            }
+//        }
+//    }
 
     private static List<PeriodInterval> parseOn(String text) throws InvalidSyntaxException {
         final String ON_ = "on ";
@@ -211,8 +256,8 @@ public class PeriodIntervalParser {
                 return TimeHelper.betweenWeeks(start+allZeroIndexedOffset, end+allZeroIndexedOffset);
             case "month":
                 return TimeHelper.betweenMonths(start+allZeroIndexedOffset, end+allZeroIndexedOffset);
-//            case "year":
-//                return TimeHelper.betweenYears(start, end);
+            case "year":
+                return TimeHelper.betweenYears(start, end);
             default:
                 //throw an error!? want detailed description of what went wrong so the user can correct
                 //make this non-static and have the original input string saved, then we can return an

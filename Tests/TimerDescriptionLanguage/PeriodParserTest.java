@@ -1,5 +1,7 @@
 package TimerDescriptionLanguage;
 
+import org.joda.time.Duration;
+import org.joda.time.DurationFieldType;
 import org.joda.time.Period;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -61,6 +63,20 @@ public class PeriodParserTest {
     }
 
     @Test
+    public void testParseSecondYear() throws Exception {
+        Period p = PeriodParser.parse("second year");
+
+        assertEquals(p, TimeHelper.makePeriodYears(2));
+    }
+
+    @Test
+    public void testParseThreeYears() throws Exception {
+        Period p = PeriodParser.parse("three years");
+
+        assertEquals(p, TimeHelper.makePeriodYears(3));
+    }
+
+    @Test
     public void testParserIgnoresPlurals() throws Exception {
         Period p = PeriodParser.parse("weeks");
         assertEquals(p, TimeHelper.makePeriodWeeks(1));
@@ -117,10 +133,54 @@ public class PeriodParserTest {
     public void testParseMinutesAndSeconds() throws Exception {
         Period p = PeriodParser.parse("three minutes and 24 seconds");
 
-        TimeHelper.makePeriodMinutes()
-
-        assertEquals(p, TimeHelper.makePeriodHours(24));
+        assertEquals(p, TimeHelper.makePeriodCustom(
+                TimeHelper.makeTimeTypePair(3, DurationFieldType.minutes()),
+                TimeHelper.makeTimeTypePair(24, DurationFieldType.seconds())
+        ));
     }
 
+    @Test
+    public void testParseLotsOfParts() throws Exception {
+        Period p = PeriodParser.parse("year, 22 days, three minutes and 24 seconds");
+
+        assertEquals(p, TimeHelper.makePeriodCustom(
+                TimeHelper.makeTimeTypePair(1, DurationFieldType.years()),
+                TimeHelper.makeTimeTypePair(22, DurationFieldType.days()),
+                TimeHelper.makeTimeTypePair(3, DurationFieldType.minutes()),
+                TimeHelper.makeTimeTypePair(24, DurationFieldType.seconds())
+        ));
+    }
+
+    @Test
+    public void testParseInvalidThrowsException() throws Exception {
+        try {
+            Period p = PeriodParser.parse("one minute cactus bogus words");
+            fail("Should have thrown exception");
+        } catch (InvalidSyntaxException e) {
+            assertEquals(e.getCode(), "one minute cactus bogus words");
+            assertEquals(e.getParseExceptionIndex(), 10);
+            assertEquals(e.getMessage(), "Could not parse due to extra words at the end of the period.");
+        }
+
+        try {
+            Period p = PeriodParser.parse("spaghetti one minute");
+            fail("Should have thrown exception");
+        } catch (InvalidSyntaxException e) {
+            assertEquals(e.getCode(), "spaghetti one");
+            assertEquals(e.getParseExceptionIndex(), 0);
+            assertEquals(e.getMessage(), "Could not parse as number or ordinal");
+        }
+    }
+
+
+
+//    @Test
+//    public void testParseMinutesAndSeconds() throws Exception {
+//        Period p = PeriodParser.parse("three minutes and 24 seconds");
+//
+////        TimeHelper.makePeriodMinutes()
+//
+//        assertEquals(p, TimeHelper.makePeriodHours(24));
+//    }
 
 }

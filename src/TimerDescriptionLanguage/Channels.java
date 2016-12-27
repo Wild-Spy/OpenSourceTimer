@@ -24,12 +24,30 @@ public class Channels {
         channels.put("4", new Channel(3, ChannelState.DISABLED));
     }
 
+    public void allOff() {
+        for (Channel c : channels.values()) {
+            c.disable();
+        }
+    }
+
     public Channel get(String name) {
         return channels.get(name);
+    }
+
+    public Channel get(int index) {
+        for (Channel c : channels.values()) {
+            if (c.getId() == index) return c;
+        }
+        return null;
+    }
+
+    public int getCount() {
+        return channels.size();
     }
 
     Map<String, Channel> getChannels() {
         return channels;
     }
+
 
 }

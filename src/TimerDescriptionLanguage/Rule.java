@@ -1,10 +1,10 @@
 package TimerDescriptionLanguage;
 
-import min.SerialHandler;
 import org.joda.time.*;
 import org.joou.UByte;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -16,16 +16,31 @@ public class Rule {
     private Action action;
     private List<PeriodInterval> intervals;
     private Period period;
-    private boolean enabled;
+
+    private boolean enabled; //If this is false, we don't update the rule
     private boolean enabledOnStart;
+
+    private DateTime startOfFirstPeriod;
+    private Period startOfFirstPeriodEventDelay = null;
+    private String startOfFirstPeriodEventName = null;
+
+    boolean hasBeenRunThisStep = false;
+
     //Internal Time Keeping Variables
-    private List<Interval> currentIntervals = null;
+    private List<Interval> currentIntervals = new ArrayList<>();
     private DateTime startOfCurrentPeriod = null;
     private DateTime lastUpdateTime = null;
 
     public class InvalidIntervalException extends Exception {};
 
-    public Rule(String name, Action action, List<PeriodInterval> intervals, Period period, boolean enabled)
+    public Rule(String name, Action action, List<PeriodInterval> intervals,
+                Period period, boolean enabled)
+            throws InvalidIntervalException, Rules.RuleAlreadyExists {
+        this(name, action, intervals, period, enabled, null);
+    }
+
+    public Rule(String name, Action action, List<PeriodInterval> intervals,
+                Period period, boolean enabled, DateTime startOfFirstPeriod)
             throws InvalidIntervalException, Rules.RuleAlreadyExists {
         this.action = action;
         this.intervals = intervals;
@@ -33,6 +48,27 @@ public class Rule {
         this.enabledOnStart = enabled;
         this.enabled = enabled;
         this.name = name;
+        this.startOfFirstPeriod = startOfFirstPeriod;
+
+        //checkIntervalsValid();
+
+        //Creating a rule automatically adds it to the Rules singleton.
+        id = Rules.getInstance().count();
+        Rules.getInstance().add(this.name, this);
+    }
+
+    public Rule(String name, Action action, List<PeriodInterval> intervals,
+                Period period, boolean enabled, String eventName, Period eventDelay)
+            throws InvalidIntervalException, Rules.RuleAlreadyExists {
+        this.action = action;
+        this.intervals = intervals;
+        this.period = period;
+        this.enabledOnStart = enabled;
+        this.enabled = enabled;
+        this.name = name;
+        this.startOfFirstPeriod = null;
+        this.startOfFirstPeriodEventName = eventName;
+        this.startOfFirstPeriodEventDelay = eventDelay;
 
         //checkIntervalsValid();
 
@@ -68,6 +104,11 @@ public class Rule {
     }
 
     public DateTime getLastStateChangeTime() {
+        //getStartOfNextPeriodForEvent(now)
+        return getLastStateChangeTimeNoEvents();
+    }
+
+    private DateTime getLastStateChangeTimeNoEvents() {
         if (intervals.isEmpty()) return null;
 
         Interval currentInterval = getCurrentInterval();
@@ -104,6 +145,21 @@ public class Rule {
     }
 
     public DateTime getNextStateChangeTime() {
+        DateTime retVal = getNextStateChangeTimeNoEvents();
+        //if (retVal == null) return null;
+
+        DateTime eventStart = null;
+        if (isTriggeredByEvent()) {
+            eventStart = getStartOfNextPeriodForEvent(lastUpdateTime);
+        }
+
+        if (eventStart != null && retVal == null) return eventStart;
+        if (eventStart != null && eventStart.isBefore(retVal)) return eventStart;
+
+        return retVal;
+    }
+
+    private DateTime getNextStateChangeTimeNoEvents() {
         if (intervals.isEmpty()) return null;
 
         Interval currentInterval = getCurrentInterval();
@@ -180,7 +236,37 @@ public class Rule {
         return null;
     }
 
+    private void runParentRulesIfNecessary(DateTime now) {
+        List<Rule> parentRules = findParentRules();
+        for (Rule r : parentRules) {
+            if (!r.hasBeenRunThisStep) r.update(now);
+        }
+    }
+
+    private List<Rule> findParentRules() {
+        List<Rule> retList = new ArrayList<>();
+        for (Rule r : Rules.getInstance().getRules().values()) {
+            if (r.getAction().getActivator() instanceof RuleActivator) {
+                Rule rule = ((RuleActivator)r.getAction().getActivator()).getRule();
+                if (rule == this) retList.add(r);
+            }
+        }
+        return retList;
+    }
+
     public void update(DateTime now) {
+        if (isEnabled()) {
+            runParentRulesIfNecessary(now);
+            updateThisRuleOnly(now);
+        }
+    }
+
+    public void updateThisRuleAndParentsIfNecessary(DateTime now) {
+        runParentRulesIfNecessary(now);
+        updateThisRuleOnly(now);
+    }
+
+    public void updateThisRuleOnly(DateTime now) {
         boolean isActive = false;
         updateInternalTimeKeepingVariables(now);
         for (Interval interval : currentIntervals) {
@@ -197,12 +283,13 @@ public class Rule {
             action.stop(now);
         }
         lastUpdateTime = now;
+        hasBeenRunThisStep = true;
     }
 
     public void reset() {
         resetInternalTimeKeepingVariables();
         action.stop(new DateTime());
-        //enabled = enabledOnStart;
+        enabled = enabledOnStart;
     }
 
 //    private void checkIntervalsValid() throws InvalidIntervalException {
@@ -220,22 +307,38 @@ public class Rule {
 
     private void resetInternalTimeKeepingVariables() {
         startOfCurrentPeriod = null;
-        currentIntervals = null;
+        currentIntervals = new ArrayList<>();
         lastUpdateTime = null;
     }
 
     private DateTime getEndOfCurrentPeriod() {
+        if (startOfCurrentPeriod == null) return null;
         return startOfCurrentPeriod.plus(period);
     }
 
     private void updateInternalTimeKeepingVariables(DateTime now) {
         if (startOfCurrentPeriod == null) {
             updateInitialStartOfCurrentPeriod(now);
-            updateCurrentPeriodIntervals();
+            if (startOfCurrentPeriod != null)
+                updateCurrentPeriodIntervals();
         } else {
+            if (isTriggeredByEvent()) {
+                DateTime startOfNext;
+
+                startOfNext = getStartOfNextPeriodForEvent(lastUpdateTime);
+                while (now.isAfter(startOfNext) || now.isEqual(startOfNext)) {
+                    startOfCurrentPeriod = startOfNext;
+                    if (startOfNext.getYear() >= 1000000) break;
+                    startOfNext = getStartOfNextPeriodForEvent(startOfNext);
+                }
+                updateCurrentPeriodIntervals();
+            }
             DateTime endOfCurrentPeriod = getEndOfCurrentPeriod();
-            if (now.isBefore(startOfCurrentPeriod)) {
+            if ( startOfFirstPeriod != null && now.isBefore(startOfFirstPeriod)) {
+                action.stop(now);
+            } else if (now.isBefore(startOfCurrentPeriod)) {
                 //should this really be possible???
+                //if (startOfCurrentPeriod.getYear() >= 1000000) return;
                 //TODO: handle this!
                 throw new Error("TODO: handle this!");
                 //updateCurrentPeriodIntervals
@@ -246,33 +349,121 @@ public class Rule {
                     endOfCurrentPeriod = startOfCurrentPeriod.plus(period);
                 }
                 updateCurrentPeriodIntervals();
+//            } else {
+//                startOfCurrentPeriod = getStartOfNextPeriodForEvent(now);
+//                updateCurrentPeriodIntervals();
             }
         }
     }
 
+    private DateTime getStartOfNextPeriodForEvent(DateTime now) {
+        //find next event
+        DateTime nextEventTime = findNextInList(now, SimulatedEvents.getInstance().findEventTimes(startOfFirstPeriodEventName));
+
+        if (nextEventTime == null) {
+            return new DateTime(1000000, 1, 1, 0, 0, 0); //year 1000000
+        }
+
+        if (startOfFirstPeriodEventDelay != null) {
+            return nextEventTime.plus(startOfFirstPeriodEventDelay);
+        }
+
+        return nextEventTime;
+    }
+
+    private DateTime getStartOfPreviousPeriodForEvent(DateTime now) {
+        //find next event
+        DateTime previousEventTime = findPreviousInList(now, SimulatedEvents.getInstance().findEventTimes(startOfFirstPeriodEventName));
+
+        if (previousEventTime == null) {
+            return null;//new DateTime(-1000000, 1, 1, 0, 0, 0); //year -1000000
+        }
+
+        if (startOfFirstPeriodEventDelay != null) {
+            return previousEventTime.plus(startOfFirstPeriodEventDelay);
+        }
+
+        return previousEventTime;
+    }
+
+    //if find closest to now in the future
+    private DateTime findNextInList(DateTime now, List<DateTime> times) {
+        Collections.sort(times);
+        long bestDist = Long.MAX_VALUE;
+        DateTime bestTime = null;
+
+        for (DateTime t : times) {
+            long dist = t.getMillis() - now.getMillis();
+            if (dist < bestDist && dist > 0) {
+                bestDist = dist;
+                bestTime = t;
+            }
+        }
+
+        return bestTime;
+    }
+
+    //if find closest to now in the past
+    private DateTime findPreviousInList(DateTime now, List<DateTime> times) {
+        Collections.sort(times);
+        long bestDist = Long.MIN_VALUE;
+        DateTime bestTime = null;
+
+        for (DateTime t : times) {
+            long dist = t.getMillis() - now.getMillis();
+            if (dist > bestDist && dist < 0) {
+                bestDist = dist;
+                bestTime = t;
+            }
+        }
+
+        return bestTime;
+    }
+
     private void updateInitialStartOfCurrentPeriod(DateTime now) {
-        if (period.getPeriodType() == PeriodType.years()) {
+        if (startOfFirstPeriod != null) {
+            startOfCurrentPeriod = startOfFirstPeriod;
+            action.stop(new DateTime());
+            return;
+        }
+
+        if (isTriggeredByEvent()) {
+            startOfCurrentPeriod = getStartOfPreviousPeriodForEvent(now);
+            return;
+        }
+
+        if (period.equals(TimeHelper.infinitePeriod())) {
+            startOfCurrentPeriod = now;
+            //startOfFirstPeriod = new DateTime(startOfCurrentPeriod);
+            return;
+        }
+
+        DurationFieldType dft = TimeHelper.getLongestDurationFieldType(period);
+        TimeHelper.makePeriodCustom(1, dft);
+
+        if (dft == DurationFieldType.years()) {
             startOfCurrentPeriod = new DateTime(now.getYear(), 1, 1, 0, 0, 0);
-        } else if (period.getPeriodType() == PeriodType.months()) {
+        } else if (dft == DurationFieldType.months()) {
             startOfCurrentPeriod = new DateTime(now.getYear(), now.getMonthOfYear(), 1, 0, 0, 0);
-        } else if (period.getPeriodType() == PeriodType.weeks()) {
+        } else if (dft == DurationFieldType.weeks()) {
             startOfCurrentPeriod = now.minusSeconds(now.getSecondOfDay() + (now.getDayOfWeek() - 1) * 24 * 60 * 60);
-        } else if (period.getPeriodType() == PeriodType.days()) {
+        } else if (dft == DurationFieldType.days()) {
             startOfCurrentPeriod = new DateTime(now.getYear(), now.getMonthOfYear(),
                     now.getDayOfMonth(), 0, 0, 0);
-        } else if (period.getPeriodType() == PeriodType.hours()) {
+        } else if (dft == DurationFieldType.hours()) {
             startOfCurrentPeriod = new DateTime(now.getYear(), now.getMonthOfYear(),
                     now.getDayOfMonth(), now.getHourOfDay(), 0, 0);
-        } else if (period.getPeriodType() == PeriodType.minutes()) {
+        } else if (dft == DurationFieldType.minutes()) {
             startOfCurrentPeriod = new DateTime(now.getYear(), now.getMonthOfYear(),
                     now.getDayOfMonth(), now.getHourOfDay(), now.getMinuteOfHour(), 0);
-        } else if (period.getPeriodType() == PeriodType.seconds()) {
+        } else if (dft == DurationFieldType.seconds()) {
             startOfCurrentPeriod = new DateTime(now.getYear(), now.getMonthOfYear(),
                     now.getDayOfMonth(), now.getHourOfDay(), now.getMinuteOfHour(),
                     now.getSecondOfMinute());
         } else {
             startOfCurrentPeriod = now;
         }
+        //startOfFirstPeriod = new DateTime(startOfCurrentPeriod);
     }
 
     //Compile
@@ -297,8 +488,6 @@ public class Rule {
         return compiledIntervalsList;
     }
 
-
-
     //Package level access:
     Action getAction() {
         return action;
@@ -311,5 +500,20 @@ public class Rule {
     Period getPeriod() {
         return period;
     }
+
+    DateTime getStartOfFirstPeriod() { return startOfFirstPeriod; }
+
+    boolean isTriggeredByEvent() {
+        return startOfFirstPeriodEventName != null && !startOfFirstPeriodEventName.isEmpty();
+    }
+
+    String getStartOfFirstPeriodEventName() {
+        return startOfFirstPeriodEventName;
+    }
+
+    Period getStartOfFirstPeriodEventDelay() {
+        return startOfFirstPeriodEventDelay;
+    }
+
 
 }

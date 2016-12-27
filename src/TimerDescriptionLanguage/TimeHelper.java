@@ -1,7 +1,6 @@
 package TimerDescriptionLanguage;
 
-import org.joda.time.Period;
-import org.joda.time.PeriodType;
+import org.joda.time.*;
 
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
@@ -14,51 +13,116 @@ public final class TimeHelper {
 
     //Periods
     public static Period makePeriodMillis(int millis) {
-        return new Period(Period.millis(millis),
-                PeriodType.millis());
+        return Period.millis(millis);
     }
 
     public static Period makePeriodSeconds(int seconds) {
-        return new Period(Period.seconds(seconds),
-                PeriodType.seconds());
+        return Period.seconds(seconds);
     }
 
     public static Period makePeriodMinutes(int minutes) {
-        return new Period(Period.minutes(minutes),
-                PeriodType.minutes());
+        return Period.minutes(minutes);
     }
 
     public static Period makePeriodHours(int hours) {
-        return new Period(Period.hours(hours),
-                PeriodType.hours());
+        return Period.hours(hours);
     }
 
     public static Period makePeriodDays(int days) {
-        return new Period(Period.days(days),
-                PeriodType.days());
+        return Period.days(days);
     }
 
     public static Period makePeriodWeeks(int weeks) {
-        return new Period(Period.weeks(weeks),
-                PeriodType.weeks());
+        return Period.weeks(weeks);
     }
 
     public static Period makePeriodMonths(int months) {
-        return new Period(Period.months(months),
-                PeriodType.months());
+        return Period.months(months);
     }
 
     public static Period makePeriodYears(int years) {
-        return new Period(Period.years(years),
-                PeriodType.years());
+        return Period.years(years);
     }
 
-    public static Period makePeriodCustom(int quantity, PeriodType type) {
-        new Period()
-        return new Period(Period.years(years),
-                PeriodType.years());
+    public static Period infinitePeriod() {
+        /*
+         * A very large number of years, though the number of
+         * milliseconds still fits in a signed Long.
+         */
+        return makePeriodYears(1000000); //1 million years in the future...
     }
 
+    public static class TimeTypePair {
+        public int quantity;
+        public DurationFieldType type;
+        TimeTypePair(int quantity, DurationFieldType type) {
+            this.quantity = quantity;
+            this.type = type;
+        }
+    }
+
+    public static TimeTypePair makeTimeTypePair(int quantity, DurationFieldType type) {
+        return new TimeTypePair(quantity, type);
+    }
+
+    public static Period makePeriodCustom(TimeTypePair ... pairs) {
+        if (pairs.length == 0) return null;
+        Period period = new Period();
+        for( TimeTypePair p : pairs ) {
+            period = period.withField(p.type, p.quantity);
+        }
+        return period;
+    }
+
+    public static Period makePeriodCustom(TimeTypePair pair) {
+        return makePeriodCustom(pair.quantity, pair.type);
+    }
+
+    public static Period makePeriodCustom(int quantity, DurationFieldType type) {
+        return new Period().withField(type, quantity);
+//        if (type == DurationFieldType.centuries()) {
+//            return makePeriodYears(quantity*100);
+//        } else if (type == DurationFieldType.years()) {
+//            return makePeriodYears(quantity);
+//        } else if (type == DurationFieldType.months()) {
+//            return makePeriodMonths(quantity);
+//        } else if (type == DurationFieldType.weeks()) {
+//            return makePeriodWeeks(quantity);
+//        } else if (type == DurationFieldType.days()) {
+//            return makePeriodDays(quantity);
+//        } else if (type == DurationFieldType.hours()) {
+//            return makePeriodHours(quantity);
+//        } else if (type == DurationFieldType.minutes()) {
+//            return makePeriodMinutes(quantity);
+//        } else if (type == DurationFieldType.seconds()) {
+//            return  makePeriodSeconds(quantity);
+//        } else if (type == DurationFieldType.millis()) {
+//            return makePeriodMillis(quantity);
+//        }
+//        return null;
+    }
+
+    public static DurationFieldType getLongestDurationFieldType(Period period) {
+        DateTime durationStartTime = new DateTime(2015, 1, 1, 0, 0, 0);
+        DurationFieldType types[] = period.getFieldTypes();
+        Period longest_duration = makePeriodMillis(0);
+        DurationFieldType longest_duration_type = null;
+        for (DurationFieldType t : types) {
+            Period tp = makePeriodCustom(period.get(t), t);
+            if (tp.toDurationFrom(durationStartTime).getMillis() >
+                    longest_duration.toDurationFrom(durationStartTime).getMillis()) {
+                longest_duration = tp;
+                longest_duration_type = t;
+            }
+        }
+
+//        if (longest_duration_type == null) {
+//            //error....
+//            //perhaps return ms?
+//        }
+
+        return longest_duration_type;
+    }
 
 
     //PeriodIntervals
@@ -234,7 +298,7 @@ public final class TimeHelper {
      *     <li>does not include January 31st @ 23:59:59.999</li>
      *     <li>does include February 1st @ 00:00:00.000</li>
      *     <li>does include March 31st @ 23:59:59.999</li>
-     *     <li>does not include April 1st @ 00:00:00.000 (and that's for real, not an April Fools prank.)</li>
+     *     <li>does not include April 1st @ 00:00:00.000 (and that's not an April Fools prank!)</li>
      * </ul>
      *
      * @param startMonth    inclusive starting month
@@ -245,6 +309,70 @@ public final class TimeHelper {
         if (startMonth <= 0 || endMonth <= 0) throw new InvalidParameterException();
         if (endMonth <= startMonth) throw new InvalidParameterException();
         return between(Period.months(startMonth-1), Period.months(endMonth-1));
+    }
+
+    /**
+     * Specifies a {@link PeriodInterval} from startYear until endYear.
+     * Passing anything less than zero to startYear or endYear is not valid and will throw an
+     * {@link InvalidParameterException}.
+     * <p>
+     * startYear is included in the {@link PeriodInterval} <br>
+     * endYear is excluded from the {@link PeriodInterval}
+     * <p>
+     * If startYear is 0 and endYear is 2 and our Period starts at the beginning of 2016 then
+     * the {@link PeriodInterval}:
+     * <ul>
+     *     <li>does not include December 31st, 2015 @ 23:59:59.999</li>
+     *     <li>does include January 1st, 2016 @ 00:00:00.000</li>
+     *     <li>does include December 31st, 2017 @ 23:59:59.999</li>
+     *     <li>does not include January 1st, 2018 @ 00:00:00.000</li>
+     * </ul>
+     *
+     * @param startYear    inclusive starting year
+     * @param endYear      exclusive ending year (must be > startYear)
+     * @return             a list containing a single {@link PeriodInterval}
+     */
+    public static List<PeriodInterval> betweenYears(int startYear, int endYear) {
+        if (startYear < 0 || endYear < 0) throw new InvalidParameterException();
+        if (endYear <= startYear) throw new InvalidParameterException();
+        return between(Period.years(startYear), Period.years(endYear));
+    }
+
+    /**
+     * Specifies a {@link PeriodInterval} from startTime until endTime.
+     * Passing a startTime which is after endTime is not valid and will throw a
+     * {@link InvalidParameterException}.
+     * <p>
+     * startTime is included in the {@link PeriodInterval} <br>
+     * endTime is excluded from the {@link PeriodInterval}
+     * <p>
+     * If startTime is 2am and endTime is 4pm then our Period must start at midnight
+     * and the {@link PeriodInterval}:
+     * <ul>
+     *     <li>does not include 01:59:59.999</li>
+     *     <li>does include 02:00:00.000</li>
+     *     <li>does include 13:59:59.999</li>
+     *     <li>does not include 14:00:00.000</li>
+     * </ul>
+     *
+     * @param startTime     inclusive starting time of day
+     * @param endTime       exclusive ending time of day (must be > startTime)
+     * @return              a list containing a single {@link PeriodInterval}
+     */
+    public static List<PeriodInterval> betweenTimesOfDay(LocalTime startTime, LocalTime endTime) {
+        if (endTime.isBefore(startTime)) throw new InvalidParameterException();
+        Period startPeriod = localTimeToPeriod(startTime);
+        Period endPeriod = localTimeToPeriod(endTime);
+        return between(startPeriod, endPeriod);
+    }
+
+    /**
+     * Generates a period from a {@link LocalTime}
+     * @param timeOfDay the time to convert to a period
+     * @return the converted time as a period
+     */
+    public static Period localTimeToPeriod(LocalTime timeOfDay) {
+        return new Period(timeOfDay.getHourOfDay(), timeOfDay.getMinuteOfHour(), timeOfDay.getSecondOfMinute(), timeOfDay.getMillisOfSecond());
     }
 
     public static List<PeriodInterval> onSeconds(int ... seconds)

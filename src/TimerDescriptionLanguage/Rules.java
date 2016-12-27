@@ -42,6 +42,13 @@ public class Rules {
         return rules.get(name);
     }
 
+    public Rule get(int index) {
+        for (Rule r : rules.values()) {
+            if (r.getId() == index) return r;
+        }
+        return null;
+    }
+
     public int count() {
         return rules.size();
     }

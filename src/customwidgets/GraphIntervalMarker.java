@@ -1,10 +1,8 @@
 package customwidgets;
 
 import org.joda.time.DateTime;
-import org.joda.time.Duration;
 import org.joda.time.Interval;
 import org.ocpsoft.prettytime.PrettyTime;
-import org.ocpsoft.prettytime.impl.DurationImpl;
 
 import java.awt.*;
 import java.util.Date;
@@ -13,7 +11,7 @@ import java.util.Date;
  * Created by mcochrane on 24/11/16.
  */
 public class GraphIntervalMarker {
-    private GraphChannel parentChannel;
+    private SubGraph parentChannel;
     private Interval interval;
     private boolean visible = true;
 
@@ -21,7 +19,7 @@ public class GraphIntervalMarker {
         LEFT, RIGHT;
     }
 
-    GraphIntervalMarker(GraphChannel parentChannel, Interval interval) {
+    GraphIntervalMarker(SubGraph parentChannel, Interval interval) {
         this.parentChannel = parentChannel;
         this.interval = interval;
     }
@@ -159,7 +157,7 @@ public class GraphIntervalMarker {
 
     private int getYOffset() {
          return GraphPanel.timeBarHeight
-                 + parentChannel.getChanNumber()*GraphPanel.channelHeight;
+                 + parentChannel.getPlotIndex()*GraphPanel.channelHeight;
     }
 
     private int getHeight() {

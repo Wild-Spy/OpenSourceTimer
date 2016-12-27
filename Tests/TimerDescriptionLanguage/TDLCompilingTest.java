@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * Created by mcochrane on 3/12/16.
  */
-public class TDLCompiling {
+public class TDLCompilingTest {
 
     private void assertCompiledListsEqual(List<UByte> actual, List<UByte> expected) {
         Assert.assertEquals(actual.size(), expected.size());

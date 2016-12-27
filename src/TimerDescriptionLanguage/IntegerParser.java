@@ -22,9 +22,10 @@ import java.util.StringTokenizer;
 public class IntegerParser {
 
     public enum ResultType {
+        Digits,
         Number,
         Ordinal,
-        DefiniteOrdinal;
+        DefiniteOrdinal
     }
 
     public static class Result {
@@ -50,7 +51,7 @@ public class IntegerParser {
 
     public static Result parseNumber(String str) throws InvalidSyntaxException {
         Integer retVal = parseDigits(str);
-        if (retVal != null) return new Result(retVal, ResultType.Number);
+        if (retVal != null) return new Result(retVal, ResultType.Digits);
         retVal = parseWords(str);
         if (retVal != null) return new Result(retVal, ResultType.Number);
         throw new InvalidSyntaxException(str, 0, "Could not parse number");
@@ -189,6 +190,7 @@ public class IntegerParser {
                         triplet[2] = 0;
                         valid = true;
                     }
+
                 } else if (set.countTokens() == 2) {  //If there are two tokens given in triplet
                     String uno = set.nextToken();
                     String dos = set.nextToken();
@@ -214,6 +216,8 @@ public class IntegerParser {
                                 valid = true;
                             }
                         }
+                        if (triplet[2] == 0) valid = false;
+                        if (triplet[1] == 0) valid = false;
                     }
                 } else if (set.countTokens() == 3) {  //If there are three tokens given in triplet
                     String uno = set.nextToken();
@@ -235,6 +239,17 @@ public class IntegerParser {
                             valid = true;
                         }
                     }
+                    for (int k = 0; k < TEENS.length; k++) {
+                        if (tres.equals(TEENS[k])) {
+                            triplet[1] = 1;
+                            triplet[2] = k;
+                            valid = true;
+                            break;
+                        }
+                    }
+                    if (triplet[2] == 0) valid = false;
+                    if (triplet[1] == 0) valid = false;
+                    if (triplet[0] == 0) valid = false;
                 } else if (set.countTokens() == 4) {  //If there are four tokens given in triplet
                     String uno = set.nextToken();
                     String dos = set.nextToken();
@@ -253,6 +268,9 @@ public class IntegerParser {
                             triplet[1] = k + 1;
                             valid = true;
                         }
+                        if (triplet[2] == 0) valid = false;
+                        if (triplet[1] == 0) valid = false;
+                        if (triplet[0] == 0) valid = false;
                     }
                 } else {
                     triplet[0] = 0;

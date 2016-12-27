@@ -154,6 +154,55 @@ public class IntegerParserTest {
     }
 
     @Test
+    public void testParseAny() throws InvalidSyntaxException {
+        assertEquals((int)IntegerParser.parseAny("first").value,   1);
+        assertEquals((int)IntegerParser.parseAny("second").value,  2);
+        assertEquals((int)IntegerParser.parseAny("third").value,   3);
+        assertEquals((int)IntegerParser.parseAny("fourth").value,  4);
+        assertEquals((int)IntegerParser.parseAny("fifth").value,   5);
+        assertEquals((int)IntegerParser.parseAny("sixth").value,   6);
+        assertEquals((int)IntegerParser.parseAny("seventh").value, 7);
+        assertEquals((int)IntegerParser.parseAny("eighth").value,  8);
+        assertEquals((int)IntegerParser.parseAny("ninth").value,   9);
+        assertEquals((int)IntegerParser.parseAny("tenth").value,   10);
+        assertEquals((int)IntegerParser.parseAny("eleventh").value,      11);
+        assertEquals((int)IntegerParser.parseAny("twelfth").value,       12);
+        assertEquals((int)IntegerParser.parseAny("thirteenth").value,    13);
+        assertEquals((int)IntegerParser.parseAny("fourteenth").value,    14);
+        assertEquals((int)IntegerParser.parseAny("fifteenth").value,     15);
+        assertEquals((int)IntegerParser.parseAny("sixteenth").value,     16);
+        assertEquals((int)IntegerParser.parseAny("seventeenth").value,   17);
+        assertEquals((int)IntegerParser.parseAny("eighteenth").value,    18);
+        assertEquals((int)IntegerParser.parseAny("nineteenth").value,    19);
+        assertEquals((int)IntegerParser.parseAny("twentieth").value,     20);
+        assertEquals((int)IntegerParser.parseAny("twenty first").value,  21);
+        assertEquals((int)IntegerParser.parseAny("twenty second").value, 22);
+        assertEquals((int)IntegerParser.parseAny("twenty third").value,  23);
+        assertEquals((int)IntegerParser.parseAny("twenty fourth").value, 24);
+
+        assertEquals((int)IntegerParser.parseAny("thirty four").value, 34);
+        assertEquals((int)IntegerParser.parseAny("fifty three").value,   53);
+        assertEquals((int)IntegerParser.parseAny("99").value,  99);
+        assertEquals((int)IntegerParser.parseAny("one hundred and seventeen").value,   117);
+        assertEquals((int)IntegerParser.parseAny("one thousand two hundred and seventeen").value,   1217);
+    }
+
+    @Test(expectedExceptions = InvalidSyntaxException.class)
+    public void testParseBrokenTensShouldThrowException() throws InvalidSyntaxException {
+        IntegerParser.parseAny("twenty cat");
+    }
+
+    @Test(expectedExceptions = InvalidSyntaxException.class)
+    public void testParseBrokenHundredsShouldThrowException() throws InvalidSyntaxException {
+        IntegerParser.parseAny("one hundred and cat");
+    }
+
+    @Test(expectedExceptions = InvalidSyntaxException.class)
+    public void testParseBrokenThousandsShouldThrowException() throws InvalidSyntaxException {
+        IntegerParser.parseAny("one thousand seven cat and six");
+    }
+
+    @Test
     public void testParseDefiniteOrdinals() throws Exception {
         IntegerParser.Result result;
 

@@ -19,4 +19,10 @@ public class InvalidSyntaxException extends Exception {
         return message + " \"" + allCode + "\".";
     }
 
+    public String getMessage() { return message; }
+
+    public String getCode() { return allCode; }
+
+    public int getParseExceptionIndex() { return parseExceptionIndex; }
+
 }

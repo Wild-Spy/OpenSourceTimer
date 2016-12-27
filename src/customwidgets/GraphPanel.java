@@ -41,7 +41,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
     private int pointWidth = 6;
     private int numberYDivisions = 10;
 
-    private List<GraphChannel> graphChannels = new ArrayList<>();
+    private List<SubGraph> subGraphs = new ArrayList<>();
     private List<GraphMarker> markers = new ArrayList<>();
     Long[] tWindow = new Long[2];
     private NeedsUpdatedDataListener needsUpdatedDataListener = null;
@@ -70,21 +70,29 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
         markers.add(new GraphMarker(this, new DateTime(), "T0"));
     }
 
-    public void addChannel(List<Double> scores, List<Long> times) {
-        addChannel(String.valueOf(graphChannels.size()), scores, times);
+    public void clearAllGraphs() {
+        subGraphs.clear();
     }
 
-    public void addChannel(String name, List<Double> scores, List<Long> times) {
-        graphChannels.add(new GraphChannel(this, name, graphChannels.size(), scores, times));
+    public void addChannelGraph(List<Double> scores, List<Long> times) {
+        addChannelGraph(String.valueOf(subGraphs.size()), scores, times);
     }
 
-    public GraphChannel getChannel(int index) throws IndexOutOfBoundsException {
-        return graphChannels.get(index);
+    public void addChannelGraph(String name, List<Double> scores, List<Long> times) {
+        subGraphs.add(new SubGraph(this, name, subGraphs.size(), scores, times));
     }
 
-    public GraphChannel getChannel(String name) throws IndexOutOfBoundsException {
-        for (GraphChannel c : graphChannels) {
-            if (c.getName().equals(name)) return c;
+    public void addRuleGraph(String ruleName, List<Double> scores, List<Long> times) {
+        subGraphs.add(new SubGraph(this, subGraphs.size(), ruleName, scores, times));
+    }
+
+    public SubGraph getGraph(int index) throws IndexOutOfBoundsException {
+        return subGraphs.get(index);
+    }
+
+    public SubGraph getGraph(String name) throws IndexOutOfBoundsException {
+        for (SubGraph c : subGraphs) {
+            if (c.getChannelName().equals(name)) return c;
         }
         throw new IndexOutOfBoundsException("Name " + name + " not found in channel list.");
     }
@@ -126,7 +134,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
     public void setFullWindow() {
         tWindow[0] = Long.MAX_VALUE;
         tWindow[1] = Long.MIN_VALUE;
-        for (GraphChannel c : graphChannels) {
+        for (SubGraph c : subGraphs) {
             Long chanFullWindow[] = c.getFullWindow();
             if (chanFullWindow[0] < tWindow[0]) tWindow[0] = chanFullWindow[0];
             if (chanFullWindow[1] > tWindow[1]) tWindow[1] = chanFullWindow[1];
@@ -135,7 +143,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
     public void setFullWindow(int chan) {
         try {
-            tWindow = graphChannels.get(chan).getFullWindow();
+            tWindow = subGraphs.get(chan).getFullWindow();
         } catch (Exception ex) {
             //invalid channel?
             //failed to update
@@ -244,8 +252,8 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
         drawXAxis(g2);
 
-        //draw graphs
-        for (GraphChannel c : graphChannels) {
+        //draw subGraphs
+        for (SubGraph c : subGraphs) {
             c.drawChannelData(g2);
         }
 
@@ -255,7 +263,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
         }
 
         //draw the left panel
-        for (GraphChannel c : graphChannels) {
+        for (SubGraph c : subGraphs) {
             c.drawLeftPanelChannelBox(g2);
         }
     }
@@ -543,7 +551,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
     @Override
     public void mouseMoved(MouseEvent mouseEvent) {
-        for (GraphChannel c : graphChannels) {
+        for (SubGraph c : subGraphs) {
             c.mouseMoved(mouseEvent);
         }
 
@@ -559,7 +567,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
             zoomOut(mouseWheelEvent.getX());
         }
 
-        for (GraphChannel c : graphChannels) {
+        for (SubGraph c : subGraphs) {
             c.mouseMoved(mouseWheelEvent);
         }
 
@@ -568,7 +576,12 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
     @Override
     public void mouseClicked(MouseEvent mouseEvent) {
+        boolean addEventMode = true;
+        String eventName = "event1";
 
+        if (addEventMode) {
+
+        }
     }
 
     @Override

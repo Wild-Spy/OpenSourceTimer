@@ -89,6 +89,35 @@ public class PeriodIntervalParserTest {
                 TimeHelper.onDays(1, 5, 8));
     }
 
+
+//    @Test
+//    public void testOnSecondsWithHundredsAndExtraAnd() throws InvalidSyntaxException {
+//        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on seconds one, one hundred and five and one hundred and eleven"),
+//                TimeHelper.onDays(1, 105, 111));
+//
+//        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on seconds one, one hundred and five"),
+//                TimeHelper.onDays(1, 105, 111));
+//
+//        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on the 1st, 5th, 8th day"),
+//                TimeHelper.onDays(1, 5, 8));
+//
+//        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on the 1st, 5th and 8th days"),
+//                TimeHelper.onDays(1, 5, 8));
+//    }
+
+
+    @Test
+    public void testOnDayImplicitPeriod() throws InvalidSyntaxException {
+        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on the 1st", TimeHelper.makePeriodMonths(1)),
+                TimeHelper.onDays(1));
+
+        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on the 1st, 5th, 8th", TimeHelper.makePeriodMonths(1)),
+                TimeHelper.onDays(1, 5, 8));
+
+        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on the 1st, 5th, 23rd", TimeHelper.makePeriodMonths(1)),
+                TimeHelper.onDays(1, 5, 23));
+    }
+
     @Test
     public void testOnMinute() throws InvalidSyntaxException {
         assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on minute 1, 5, 8"),

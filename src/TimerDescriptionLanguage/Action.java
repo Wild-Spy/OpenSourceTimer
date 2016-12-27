@@ -32,7 +32,7 @@ public class Action {
     }
 
     public void stop(DateTime now) {
-        if (this.state == RuleState.INACTIVE) return;
+        //if (this.state == RuleState.INACTIVE) return;
         this.state = RuleState.INACTIVE;
         if (activatorStateWhenRunning == ActivatorState.ENABLED) {
             activator.disable();

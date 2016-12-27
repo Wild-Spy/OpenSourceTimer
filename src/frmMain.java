@@ -1,11 +1,13 @@
 import TimerDescriptionLanguage.*;
 import customwidgets.GraphPanel;
+import customwidgets.GraphPoint;
 import customwidgets.NeedsUpdatedDataListener;
 import jssc.SerialPortException;
 import jssc.SerialPortList;
 import min.*;
 import min.Frame;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.joda.time.Interval;
 import org.joou.UByte;
 
@@ -29,7 +31,7 @@ public class frmMain {
     private JLabel lblInfo;
     private JButton btnConnectToDev;
     private JButton btnReparse;
-    private DateTime deploymentTime = new DateTime();
+    private DateTime deploymentTime;
     SerialHandler serialHandler;
 
     //private zoomLevel
@@ -59,6 +61,15 @@ public class frmMain {
     }
 
     public frmMain() throws SerialPortException {
+        DateTimeZone.setDefault(DateTimeZone.UTC);
+        this.deploymentTime = new DateTime(2016, 1, 1, 0, 0, 0);
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
+                new DateTime(2017, 1, 1, 0, 0, 0)));
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
+                new DateTime(2017, 1, 10, 0, 0, 0)));
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
+                new DateTime(2017, 3, 1, 0, 0, 0)));
+
         btnUploadToDev.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
@@ -147,6 +158,26 @@ public class frmMain {
                     System.out.println("error!");
                     ex.printStackTrace();
                 }
+
+                int channelCount = Channels.getInstance().getCount();
+
+                List<Double> scores = new ArrayList<>();
+                List<Long> times = new ArrayList<>();
+                scores.add(0.0);
+                times.add(new DateTime().getMillis());
+                scores.add(1.0);
+                times.add(new DateTime().plusSeconds(1).getMillis());
+
+                graphPanel1.clearAllGraphs();
+                for (int i = 0; i < channelCount; i++) {
+                    //Channel chan = Channels.getInstance().get(i);
+                    graphPanel1.addChannelGraph("Channel " + (i+1), scores, times);
+                }
+                for (int i = 0; i < Rules.getInstance().count(); i++) {
+                    Rule rule = Rules.getInstance().get(i);
+                    graphPanel1.addRuleGraph(rule.getName(), scores, times);
+                }
+
                 regenGraphPoints(graphPanel1.getWindowStart(),
                         graphPanel1.getWindowStop());
             }
@@ -185,58 +216,102 @@ public class frmMain {
     }
 
     private void regenGraphPoints(DateTime windowStart, DateTime windowStop) {
-        List<Double> scores1 = new ArrayList<>();
-        List<Long> times1 = new ArrayList<>();
-        List<Double> scores2 = new ArrayList<>();
-        List<Long> times2 = new ArrayList<>();
-        List<Double> scores3 = new ArrayList<>();
-        List<Long> times3 = new ArrayList<>();
-        List<Double> scores4 = new ArrayList<>();
-        List<Long> times4 = new ArrayList<>();
+        List<List<Double>> scoresLists = new ArrayList<>();
+        List<List<Long>> timesLists = new ArrayList<>();
+//        List<Double> scores1 = new ArrayList<>();
+//        List<Long> times1 = new ArrayList<>();
+//        List<Double> scores2 = new ArrayList<>();
+//        List<Long> times2 = new ArrayList<>();
+//        List<Double> scores3 = new ArrayList<>();
+//        List<Long> times3 = new ArrayList<>();
+//        List<Double> scores4 = new ArrayList<>();
+//        List<Long> times4 = new ArrayList<>();
         Interval window = new Interval(windowStart, windowStop);
         //Period pointPeriod = new Interval(windowStart.getMillis(), windowStart.getMillis() + window.toDurationMillis()/maxDataPoints).toPeriod();
         //update window to give a touch more scope
         //Interval pointWindow = new Interval(windowStart.minus(pointPeriod), windowStop.plus(pointPeriod));
+        int channelCount = Channels.getInstance().getCount();
 
-        RuleRunner.resetAll(deploymentTime);
-        //RuleRunner.disableAll();
-        //Rules.getInstance().get("zzz").enable();
-        RuleRunner.start(deploymentTime);
-//        RuleRunner.printStatusToConsole(deploymentTime);
-        if (window.getStart().isAfter(deploymentTime)) {
-            //RuleRunner.stepTo(window.getStart());
-            RuleRunner.startGraph(window.getStart());
-//            RuleRunner.printStatusToConsole(window.getStart());
+        for (int i = 0; i < channelCount; i++) {
+            scoresLists.add(new ArrayList<>());
+            timesLists.add(new ArrayList<>());
         }
-        addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow());
-        addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow());
-        addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow());
-        addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow());
-        do {
-            RuleRunner.step();
-//            RuleRunner.printStatusToConsole(nextStateChange);
-            addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow());
-            addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow());
-            addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow());
-            addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow());
-        } while (RuleRunner.getNow().isBefore(window.getEnd()));
+        for (int i = 0; i < Rules.getInstance().count(); i++) {
+            scoresLists.add(new ArrayList<>());
+            timesLists.add(new ArrayList<>());
+        }
 
-        //Add one more so we fill the full graph.
-        RuleRunner.step();
-//        RuleRunner.printStatusToConsole(nextStateChange);
-        addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow(), true);
-        addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow(), true);
-        addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow(), true);
-        addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow(), true);
+        List<List<GraphPoint>> pointsLists = RuleRunner.generateGraphPoints(deploymentTime, window);
 
-        graphPanel1.getChannel(0).updateData(scores1, times1);
-        graphPanel1.getChannel(1).updateData(scores2, times2);
-        graphPanel1.getChannel(2).updateData(scores3, times3);
-        graphPanel1.getChannel(3).updateData(scores4, times4);
+        for (int i = 0; i < pointsLists.size(); i++) {
+            List<GraphPoint> points = pointsLists.get(i);
+            for (GraphPoint p : points) {
+                scoresLists.get(i).add(channelStateToDouble(p.getState()));
+                timesLists.get(i).add(p.getDateTime().getMillis());
+            }
+        }
+
+        //graphPanel1.clearAllGraphs();
+
+        for (int i = 0; i < channelCount; i++) {
+            //Channel chan = Channels.getInstance().get(i);
+            graphPanel1.getGraph(i).updateData(scoresLists.get(i),
+                    timesLists.get(i));
+        }
+        for (int i = 0; i < Rules.getInstance().count(); i++) {
+            //Rule rule = Rules.getInstance().get(i);
+            graphPanel1.getGraph(i+channelCount).updateData(scoresLists.get(i+channelCount),
+                    timesLists.get(i+channelCount));
+        }
+
+//        RuleRunner.startGraph(deploymentTime, window.getStart());
+////        RuleRunner.resetAll(deploymentTime);
+////        //RuleRunner.disableAll();
+////        //Rules.getInstance().get("zzz").enable();
+////        RuleRunner.start(deploymentTime);
+//////        RuleRunner.printStatusToConsole(deploymentTime);
+////        if (window.getStart().isAfter(deploymentTime)) {
+////            //RuleRunner.stepTo(window.getStart());
+////            RuleRunner.startGraph(window.getStart());
+//////            RuleRunner.printStatusToConsole(window.getStart());
+////        }
+//        addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow());
+//        addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow());
+//        addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow());
+//        addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow());
+//        do {
+//            RuleRunner.step();
+////            RuleRunner.printStatusToConsole(nextStateChange);
+//            addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow());
+//            addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow());
+//            addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow());
+//            addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow());
+//        } while (RuleRunner.getNow().isBefore(window.getEnd()));
+//
+//        //Add one more so we fill the full graph.
+//        RuleRunner.step();
+////        RuleRunner.printStatusToConsole(nextStateChange);
+//        addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow(), true);
+//        addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow(), true);
+//        addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow(), true);
+//        addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow(), true);
+//
+//        graphPanel1.getGraph(0).updateData(scores1, times1);
+//        graphPanel1.getGraph(1).updateData(scores2, times2);
+//        graphPanel1.getGraph(2).updateData(scores3, times3);
+//        graphPanel1.getGraph(3).updateData(scores4, times4);
     }
 
     private double channelStateToDouble(String chanName) {
         if (Channels.getInstance().get(chanName).getState() == ChannelState.DISABLED) {
+            return 0.0;
+        } else {
+            return 1.0;
+        }
+    }
+
+    private double channelStateToDouble(ChannelState chanState) {
+        if (chanState == ChannelState.DISABLED) {
             return 0.0;
         } else {
             return 1.0;
@@ -262,10 +337,12 @@ public class frmMain {
         times.add(new DateTime().plusSeconds(1).getMillis());
         graphPanel1 = new GraphPanel();
         graphPanel1.setPreferredSize(new Dimension(80, 60));
-        graphPanel1.addChannel("Channel 1", scores, times);
-        graphPanel1.addChannel("Channel 2", scores, times);
-        graphPanel1.addChannel("Channel 3", scores, times);
-        graphPanel1.addChannel("Channel 4", scores, times);
+        graphPanel1.addChannelGraph("Channel 1", scores, times);
+        graphPanel1.addChannelGraph("Channel 2", scores, times);
+        graphPanel1.addChannelGraph("Channel 3", scores, times);
+        graphPanel1.addChannelGraph("Channel 4", scores, times);
+        graphPanel1.addRuleGraph("a", scores, times);
+        graphPanel1.addRuleGraph("B", scores, times);
         graphPanel1.setFullWindow();
     }
 }

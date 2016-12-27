@@ -51,7 +51,7 @@
                   </grid>
                 </constraints>
                 <properties>
-                  <text value="aaa: enable channel 1 for 1 hour every 2 hours&#10;Zzz: enable rule aaa on the 1st, 5th, 10th, 11th, 12th, 15th day of every month&#10;Bbb: enable channel 2 for 1 hour every 2 hours"/>
+                  <text value="aaa: enable channel 1 for 1 hour every 2 hours and 30 minutes&#10;Zzz: enable rule aaa on the 1st, 5th, 10th, 11th, 12th, 15th day of every month&#10;Bbb: enable channel 2 for 1 hour every 2 hours"/>
                 </properties>
               </component>
               <component id="73521" class="javax.swing.JButton" binding="btnReparse">

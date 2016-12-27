@@ -1,8 +1,7 @@
 package TimerDescriptionLanguage;
 
-import TimerDescriptionLanguage.Rule;
-import TimerDescriptionLanguage.RuleParser;
-import TimerDescriptionLanguage.RuleState;
+import org.joda.time.DateTime;
+import org.joda.time.Period;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -116,5 +115,109 @@ public class RuleParserTest {
         assertEquals(r.size(), 2);
         assertEquals(r.get(1).getName(), "AAA");
     }
+
+    @Test
+    public void testParseInfiniteRule() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable channel 1 for one hour");
+        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+        assertEquals(r.getPeriod(), TimeHelper.infinitePeriod());
+    }
+
+    @Test
+    public void testParseInfiniteRuleWithStart() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable channel 1 for one hour starting at 1am on 3/3/2017");
+        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+        assertEquals(r.getPeriod(), TimeHelper.infinitePeriod());
+        assertEquals(r.getStartOfFirstPeriod(), new DateTime(2017, 3, 3, 1, 0, 0));
+    }
+
+    @Test
+    public void testParseRuleWithStart() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable channel 1 for one hour every two hours starting at 1am on 3/3/2017");
+        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+        assertEquals(r.getPeriod(), TimeHelper.makePeriodHours(2));
+        assertEquals(r.getStartOfFirstPeriod(), new DateTime(2017, 3, 3, 1, 0, 0));
+    }
+
+    @Test
+    public void testParseRuleWithStartAfterEvent() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable channel 1 for one hour starting 1 hour after event event1");
+        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+        assertEquals(r.getPeriod(), TimeHelper.infinitePeriod());
+        assertEquals(r.getStartOfFirstPeriod(), null);
+        assertEquals(r.getStartOfFirstPeriodEventName(), "event1");
+        assertEquals(r.getStartOfFirstPeriodEventDelay(), new Period(0, 0, 0, 0, 1, 0, 0, 0)); //1 hour
+    }
+
+    @Test
+    public void testParseRulesWithInvalidSyntax() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        try {
+            Rule r = RuleParser.parse("enable channel 1 for one hour starting");
+            fail("Should have thrown exception");
+        } catch (InvalidSyntaxException e) {
+            assertEquals(e.getCode(), "enable channel 1 for one hour starting");
+            assertEquals(e.getParseExceptionIndex(), 38);
+            assertEquals(e.getMessage(), "Expected a 'starting at [date/time]', 'starting on event [event name]' or 'starting [time] after event [event name]");
+        }
+
+        try {
+            Rule r = RuleParser.parse("enable channel 1 for one hour starting at chicken");
+            fail("Should have thrown exception");
+        } catch (InvalidSyntaxException e) {
+            assertEquals(e.getCode(), "chicken");
+            assertEquals(e.getParseExceptionIndex(), 0);
+            assertEquals(e.getMessage(), "Invalid date.");
+        }
+
+        try {
+            Rule r = RuleParser.parse("enable channel 1 for one hour starting event");
+            fail("Should have thrown exception");
+        } catch (InvalidSyntaxException e) {
+            assertEquals(e.getCode(), "event");
+            assertEquals(e.getParseExceptionIndex(), 0);
+            assertEquals(e.getMessage(), "Cannot parse event name.");
+        }
+
+        try {
+            Rule r = RuleParser.parse("enable channel 1 for one hour starting carrot after event event1");
+            fail("Should have thrown exception");
+        } catch (InvalidSyntaxException e) {
+            assertEquals(e.getCode(), "carrot");
+            assertEquals(e.getParseExceptionIndex(), 0);
+            assertEquals(e.getMessage(), "Invalid syntax for period.");
+        }
+
+        try {
+            Rule r = RuleParser.parse("enable channel 1 for one hour starting carrot event event1");
+            fail("Should have thrown exception");
+        } catch (InvalidSyntaxException e) {
+            assertEquals(e.getCode(), "carrot event event1");
+            assertEquals(e.getParseExceptionIndex(), 19);
+            assertEquals(e.getMessage(), "Expected the word 'after' before event keyword, eg. 'starting 1 hour *after* event'.");
+        }
+
+        try {
+            Rule r = RuleParser.parse("enable channel 1 for one hour starting 5 hours event event1");
+            fail("Should have thrown exception");
+        } catch (InvalidSyntaxException e) {
+            assertEquals(e.getCode(), "5 hours event event1");
+            assertEquals(e.getParseExceptionIndex(), 20);
+            assertEquals(e.getMessage(), "Expected the word 'after' before event keyword, eg. 'starting 1 hour *after* event'.");
+        }
+    }
+
+//    @Test
+//    public void testParseEverySecondHour() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+//        Rule r = RuleParser.parse("enable channel 1 every second hour");
+//        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(1, 2).get(0));
+//        assertEquals(r.getPeriod(), TimeHelper.makePeriodHours(2));
+//    }
+//
+//    @Test
+//    public void testParseEveryOtherHour() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+//        Rule r = RuleParser.parse("enable channel 1 every other day");
+//        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(1, 2).get(0));
+//        assertEquals(r.getPeriod(), TimeHelper.makePeriodHours(2));
+//    }
 
 }
