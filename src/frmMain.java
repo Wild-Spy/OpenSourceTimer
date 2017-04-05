@@ -12,9 +12,7 @@ import org.joda.time.Interval;
 import org.joou.UByte;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.event.MouseInputAdapter;
+import javax.swing.event.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
@@ -23,7 +21,7 @@ import java.util.List;
 /**
  * Created by mcochrane on 30/10/16.
  */
-public class frmMain {
+public class frmMain implements Runnable {
     private JButton btnUploadToDev;
     private JPanel panel1;
     private JTextArea txtRules;
@@ -31,8 +29,11 @@ public class frmMain {
     private JLabel lblInfo;
     private JButton btnConnectToDev;
     private JButton btnReparse;
+    private JButton btn2;
+    private JPanel statusBar;
+    private JLabel statusBarLabel;
     private DateTime deploymentTime;
-    SerialHandler serialHandler;
+    SerialHandler serialHandler = null;
 
     //private zoomLevel
 
@@ -70,6 +71,13 @@ public class frmMain {
         SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
                 new DateTime(2017, 3, 1, 0, 0, 0)));
 
+        btn2.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                serialHandler.frame_transmitter.sendGetRuleCount();
+            }
+        });
+
         btnUploadToDev.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
@@ -82,10 +90,18 @@ public class frmMain {
 //                pingFrame.transmit();
 //                return;
 
-                List<List<UByte>> allCompiled = Rules.getInstance().getAllCompiled();
-                for (List<UByte> r : allCompiled) {
-                    txRule(r);
-                }
+//                List<UByte> data = new ArrayList<>();
+//                Frame getRuleCountFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x06), data); //GetRuleCount
+//                getRuleCountFrame.transmit();
+//                return;
+                //serialHandler.frame_transmitter.sendPing();
+                serialHandler.frame_transmitter.sendEraseAllRules();
+                //serialHandler.frame_transmitter.sendGetRuleCount();
+
+//                List<List<UByte>> allCompiled = Rules.getInstance().getAllCompiled();
+//                for (List<UByte> r : allCompiled) {
+//                    txRule(r);
+//                }
             }
         });
 
@@ -99,7 +115,9 @@ public class frmMain {
                 }
                 if (portNames.length > 0) {
                     try {
-                        serialHandler = new SerialHandler(portNames[0], 115200, new SerialReceivedFrameHandler());
+                        //serialHandler = new SerialHandler(portNames[0], 115200, new SerialReceivedFrameHandler());
+                        serialHandler = new SerialHandler(portNames[0], 115200, new FrameReceiver());
+
                     } catch (SerialPortException e) {
                         System.out.println("Couldn't connect to device");
                     }
@@ -319,8 +337,16 @@ public class frmMain {
     }
 
     public static void main(String[] args) throws Exception {
-        JFrame frame = new JFrame("App");
-        frame.setContentPane(new frmMain().panel1);
+        SwingUtilities.invokeLater(new frmMain());
+    }
+
+    @Override
+    public void run() {
+        JFrame frame = new JFrame("WS Open Source Timer");
+        ImageIcon icon = new ImageIcon("src/resources/timer-icon.png");
+        frame.setIconImage(icon.getImage());
+        frame.setContentPane(panel1);
+        frame.setJMenuBar(createMenuBar());
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.pack();
         frame.setVisible(true);
@@ -344,5 +370,146 @@ public class frmMain {
         graphPanel1.addRuleGraph("a", scores, times);
         graphPanel1.addRuleGraph("B", scores, times);
         graphPanel1.setFullWindow();
+    }
+
+    private JMenuBar createMenuBar() {
+        JMenuBar menu_bar = new JMenuBar();
+        JMenu menu_file = new JMenu("File");
+
+        JMenuItem menu_item_new = new JMenuItem("New");
+        menu_item_new.addActionListener(new MenuNewActionListener());
+        menu_file.add(menu_item_new);
+
+        JMenuItem menu_item_open = new JMenuItem("Open");
+        menu_item_open.addActionListener(new MenuOpenActionListener());
+        menu_file.add(menu_item_open);
+
+        JMenuItem menu_item_save = new JMenuItem("Save");
+        menu_item_save.addActionListener(new MenuSaveActionListener());
+        menu_file.add(menu_item_save);
+
+        menu_bar.add(menu_file);
+
+        JMenu menu_device = new JMenu("Device");
+
+        JMenuItem menu_item_connect = new JMenuItem("Connect");
+        menu_item_connect.addActionListener(new MenuDevConnectActionListener());
+        menu_device.add(menu_item_connect);
+
+        JMenuItem menu_item_upload = new JMenuItem("Upload Rules To Device");
+        menu_item_upload.addActionListener(new MenuDevUploadRulesActionListener());
+        menu_device.add(menu_item_upload);
+
+        menu_bar.add(menu_device);
+
+        return menu_bar;
+    }
+
+    class MenuNewActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+
+        }
+    }
+
+    class MenuOpenActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+            ((JMenuItem)actionEvent.getSource()).setText(".........");
+        }
+    }
+
+    class MenuSaveActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+
+        }
+    }
+
+    private void DisconnectDevice() {
+        serialHandler.Disconnect();
+        serialHandler = null;
+        statusBarLabel.setText("Not Connected");
+    }
+
+    class MenuDevConnectActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+            if (serialHandler != null) {
+                //already connected!
+                int result = JOptionPane.showConfirmDialog(null, "Already connected to a device.  Do you want to disconnect from it?");
+                if (result != 0) return;
+                DisconnectDevice();
+            }
+
+            DeviceSelector dev_sel = new DeviceSelector();
+            dev_sel.setVisible(true);
+            System.out.printf("Selected port '%s'\r\n", dev_sel.result);
+
+            if (dev_sel.result.isEmpty()) return;
+
+            try {
+                serialHandler = new SerialHandler(dev_sel.result, 115200, new FrameReceiver());
+                statusBarLabel.setText("Connected to '" + dev_sel.result + "'");
+            } catch (SerialPortException e) {
+                System.out.println("Couldn't connect to device");
+            }
+
+        }
+    }
+
+    class MenuDevUploadRulesActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+            if (serialHandler == null) {
+                JOptionPane.showMessageDialog(null, "Not connected to a device.", "Warning", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            WaitDialog wait_dialog = new WaitDialog("Uploading rules to device...", Rules.getInstance().count());
+
+
+            SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() throws InterruptedException {
+                    /** Execute some operation */
+
+                    List<Rule> allRules = Rules.getInstance().getAll();
+                    for (Rule r : allRules) {
+                        serialHandler.frame_transmitter.sendRule(r);
+                        wait_dialog.increment_update();
+                        Thread.sleep(1000);
+                    }
+                    return "";
+                }
+                @Override
+                protected void done() {
+                    wait_dialog.dispose();
+                }
+            };
+
+            worker.execute();
+            wait_dialog.setVisible(true);
+            try {
+                worker.get();
+            } catch (Exception e1) {
+                e1.printStackTrace();
+            }
+            return;
+
+//            DeviceSelector dev_sel = new DeviceSelector();
+//            dev_sel.setVisible(true);
+//            System.out.printf("Selected port '%s'\r\n", dev_sel.result);
+//
+//            if (dev_sel.result.isEmpty()) return;
+//
+//            try {
+//                serialHandler = new SerialHandler(dev_sel.result, 115200, new FrameReceiver());
+//                statusBarLabel.setText("Connected to '" + dev_sel.result + "'");
+//            } catch (SerialPortException e) {
+//                System.out.println("Couldn't connect to device");
+//            }
+
+        }
     }
 }

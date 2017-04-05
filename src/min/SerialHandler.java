@@ -28,12 +28,16 @@ public class SerialHandler {
     private Frame frame = null;
     private SerialPort serial;
     private ReceivedFrameHandler received_frame_handler;
+    public FrameTransmitter frame_transmitter;
     Queue<List<UByte>> send_queue;// = new PriorityQueue<>();
     private Thread receive_thread;
     private Thread send_thread;
 
     private boolean show_raw = false;
     private boolean quiet = false;
+
+    private Receiver receiver;
+    private Sender sender;
 
     public SerialHandler(String port, int baudrate, ReceivedFrameHandler received_frame_handler)
             throws jssc.SerialPortException {
@@ -50,14 +54,30 @@ public class SerialHandler {
         // Initialize receiver and sender threads
         this.send_queue = new PriorityQueue<>();
 
-        receive_thread = new Thread(new Receiver());
-        send_thread = new Thread(new Sender());
+        this.receiver = new Receiver();
+        this.sender = new Sender();
+
+        receive_thread = new Thread(this.receiver);
+        send_thread = new Thread(this.sender);
 
         receive_thread.setDaemon(true);
         send_thread.setDaemon(true);
 
         receive_thread.start();
         send_thread.start();
+
+        frame_transmitter = new FrameTransmitter(this);
+
+    }
+
+    public void Disconnect() {
+        receiver.shutdown();
+        sender.shutdown();
+        try {
+            this.serial.closePort();
+        } catch (SerialPortException ex) {
+            //must be closed...
+        }
     }
 
     private void println(String s) {
@@ -73,9 +93,11 @@ public class SerialHandler {
      * Receive loop that takes a byte at a time from the serial port and creates a frame
      */
     class Receiver implements Runnable {
+        public boolean halt = false;
+
         @Override
         public void run() {
-            while (true) {
+            while (!halt) {
                 try {
                     // Read a byte from the serial line(blocking call)
                     byte[] data = SerialHandler.this.serial.readBytes(1);
@@ -86,15 +108,22 @@ public class SerialHandler {
                 }
             }
         }
+
+        public void shutdown() {
+            halt = true;
+        }
+
     }
 
     /**
      * Feed the queue into the serial port (blocking on reading the queue and the sending)
      */
     class Sender implements Runnable {
+        public boolean halt = false;
+
         @Override
         public void run() {
-            while (true) {
+            while (!halt) {
                 try {
                     //println("sender_thread");
                     List<UByte> frame_data = SerialHandler.this.send_queue.remove();
@@ -106,6 +135,10 @@ public class SerialHandler {
 
                 }
             }
+        }
+
+        public void shutdown() {
+            halt = true;
         }
     }
 
@@ -221,7 +254,10 @@ public class SerialHandler {
 
     // Decoder MIN network order 16-bit and 32-bit words
     public static int min_decode(List<UByte> data) {
-        if (data.size() == 2) {
+        if (data.size() == 1) {
+            // 8-bit integer (unsigned..)
+            return data.get(0).intValue();
+        }else if (data.size() == 2) {
             // 16-bit big-endian integer
             return (data.get(0).intValue() << 8) | (data.get(1).intValue());
         } else if (data.size() == 4) {

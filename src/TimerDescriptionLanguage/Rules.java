@@ -68,6 +68,10 @@ public class Rules {
         return retLst;
     }
 
+    public List<Rule> getAll() {
+        return new ArrayList<>(rules.values());
+    }
+
     private String makeName(int number) {
         return "Rule_" + String.valueOf(number);
     }
