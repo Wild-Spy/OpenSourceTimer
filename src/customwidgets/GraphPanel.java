@@ -305,8 +305,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
         pinWindowToPoint(xPosMs, xPosPixels);
 
-        if (needsUpdatedDataListener != null)
-            needsUpdatedDataListener.needsUpdatedData(getWindowInterval());
+        updateData();
 
         //updateWindowLabel();
     }
@@ -316,19 +315,22 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
     }
 
+    public void updateData() {
+        if (needsUpdatedDataListener != null)
+            needsUpdatedDataListener.needsUpdatedData(getWindowInterval());
+    }
+
     @Override
     public void mouseDragged(MouseEvent mouseEvent) {
         if (mouseDragging && mouseScrollingXAxis) {
             pinWindowToPoint(mouseDragTimeMs, mouseEvent.getX());
-            if (needsUpdatedDataListener != null)
-                needsUpdatedDataListener.needsUpdatedData(getWindowInterval());
+            updateData();
         } else {
             for (GraphMarker marker : markers) {
                 marker.mouseMoved(mouseEvent);
             }
             this.repaint();
         }
-        //needsUpdatedDataListener
     }
 
     @Override
@@ -436,8 +438,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
     public void scrollTo(DateTime startTime, DateTime endTime) {
         setWindow(startTime, endTime);
-        if (needsUpdatedDataListener != null)
-            needsUpdatedDataListener.needsUpdatedData(getWindowInterval());
+        updateData();
     }
 
     public void scrollTo(DateTime center, Period windowSize) {

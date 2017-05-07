@@ -43,5 +43,6 @@
     </orderEntry>
     <orderEntry type="library" name="substance-7.0.01" level="project" />
     <orderEntry type="library" name="trident-1.4" level="project" />
+    <orderEntry type="library" name="com.google.protobuf:protobuf-java:3.3.0" level="project" />
   </component>
 </module>

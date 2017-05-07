@@ -29,12 +29,14 @@ public class SimulatedEvent {
         this.time = time;
         this.graphPanel = graphPanel;
         this.graphMarker = this.graphPanel.addMarker(time, name);
+        this.graphMarker.setIsDragable(true);
         this.graphMarker.setMouseClickedListener(new MouseClickedListener() {
             @Override
             public void mouseClicked(MouseEvent event) {
                 if (event.getButton() != 1) return;
                 SimulatedEvents.getInstance().setAllMarkersNotSelected();
                 graphMarker.setSelected(true);
+                SimulatedEvents.getInstance().setSelectedTreeItem(SimulatedEvent.this);
             }
         });
         this.graphMarker.setPopupMenu(new GraphMarkerPopupMenu(new GraphMarkerPopupMenuListener() {

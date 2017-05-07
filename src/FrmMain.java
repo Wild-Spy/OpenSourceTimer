@@ -9,7 +9,6 @@ import min.*;
 import min.Frame;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.Duration;
 import org.joda.time.Interval;
 import org.joou.UByte;
 import org.pushingpixels.substance.api.skin.SubstanceGraphiteLookAndFeel;
@@ -25,7 +24,7 @@ import java.util.List;
 /**
  * Created by mcochrane on 30/10/16.
  */
-public class frmMain implements Runnable {
+public class FrmMain implements Runnable {
     private JButton btnUploadToDev;
     private JPanel panelRoot;
     private JTextArea txtRules;
@@ -41,7 +40,8 @@ public class frmMain implements Runnable {
     private JSplitPane splitPaneMain;
     private DateTime deploymentTime;
     SerialHandler serialHandler = null;
-    JFrame frameRoot;
+    private JFrame frameRoot;
+    FrmDevice frmDevice;
 
     //private zoomLevel
 
@@ -50,7 +50,7 @@ public class frmMain implements Runnable {
         //Tx Start Frame
         data = new ArrayList<>();
         data.addAll(SerialHandler.min_encode_16((short)compiledRule.size()));
-        Frame startFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x03), data);
+        Frame startFrame = new Frame(FrmMain.this.serialHandler, UByte.valueOf(0x03), data);
         startFrame.transmit();
 
         int startIndex = 0;
@@ -58,14 +58,14 @@ public class frmMain implements Runnable {
             int endIndex = startIndex + 32;
             if (endIndex > compiledRule.size()) endIndex = compiledRule.size();
             data = compiledRule.subList(startIndex, endIndex);
-            Frame part = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x04), data);
+            Frame part = new Frame(FrmMain.this.serialHandler, UByte.valueOf(0x04), data);
             part.transmit();
             startIndex += 32;
         }
 
         data = new ArrayList<>();
         data.add(UByte.valueOf(0));
-        Frame endFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x05), data);
+        Frame endFrame = new Frame(FrmMain.this.serialHandler, UByte.valueOf(0x05), data);
         endFrame.transmit();
     }
 
@@ -78,7 +78,7 @@ public class frmMain implements Runnable {
         SwingUtilities.updateComponentTreeUI(frameRoot);
     }
 
-    public frmMain() throws SerialPortException {
+    public FrmMain() throws SerialPortException {
         JFrame.setDefaultLookAndFeelDecorated(true);
         JDialog.setDefaultLookAndFeelDecorated(true);
     }
@@ -216,7 +216,7 @@ public class frmMain implements Runnable {
     }
 
     public static void main(String[] args) throws Exception {
-        SwingUtilities.invokeLater(new frmMain());
+        SwingUtilities.invokeLater(new FrmMain());
     }
 
     @Override
@@ -259,9 +259,10 @@ public class frmMain implements Runnable {
                         SimulatedEvent event = ((SimulatedEventMutableTreeNode) tp.getLastPathComponent()).getEvent();
                         event.getMarker().setSelected(true);
 //                        graphPanel1.scrollTo(event.getTime(), Period.hours(10));
-                        graphPanel1.scrollTo(event.getTime(), graphPanel1.getWindowDuration());
+                        if (!event.getMarker().isVisible()) {
+                            graphPanel1.scrollTo(event.getTime(), graphPanel1.getWindowDuration());
+                        }
                     }
-
                 }
             }
         });
@@ -277,27 +278,6 @@ public class frmMain implements Runnable {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
                 serialHandler.frame_transmitter.sendPrintEeprom((short) 0,128);
-
-//                List<UByte> data = new ArrayList<>();
-//                data.add(UByte.valueOf(1));
-//                data.add(UByte.valueOf(5));
-//                data.add(UByte.valueOf(2));
-//                Frame pingFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x02), data); //ping
-//                pingFrame.transmit();
-//                return;
-
-//                List<UByte> data = new ArrayList<>();
-//                Frame getRuleCountFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x06), data); //GetRuleCount
-//                getRuleCountFrame.transmit();
-//                return;
-                //serialHandler.frame_transmitter.sendPing();
-//                serialHandler.frame_transmitter.sendEraseAllRules();
-                //serialHandler.frame_transmitter.sendGetRuleCount();
-
-//                List<List<UByte>> allCompiled = Rules.getInstance().getAllCompiled();
-//                for (List<UByte> r : allCompiled) {
-//                    txRule(r);
-//                }
             }
         });
 
@@ -444,12 +424,22 @@ public class frmMain implements Runnable {
 
         menu_bar.add(menu_file);
 
+        //
+        // Device Menu
+        //
         JMenu menu_device = new JMenu("Device");
 
+        // Show Device Window
+        JMenuItem menu_item_show_dev_window = new JMenuItem("Show Device Window");
+        menu_item_show_dev_window.addActionListener(new MenuDevWindowShowActionListener());
+        menu_device.add(menu_item_show_dev_window);
+
+        // Connect
         JMenuItem menu_item_connect = new JMenuItem("Connect");
         menu_item_connect.addActionListener(new MenuDevConnectActionListener());
         menu_device.add(menu_item_connect);
 
+        // Upload Rules To Device
         JMenuItem menu_item_upload = new JMenuItem("Upload Rules To Device");
         menu_item_upload.addActionListener(new MenuDevUploadRulesActionListener());
         menu_device.add(menu_item_upload);
@@ -496,6 +486,16 @@ public class frmMain implements Runnable {
         serialHandler.Disconnect();
         serialHandler = null;
         statusBarLabel.setText("Not Connected");
+    }
+
+    class MenuDevWindowShowActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+            if (frmDevice == null)
+                frmDevice = new FrmDevice(FrmMain.this);
+
+            frmDevice.setVisible(true);
+        }
     }
 
     class MenuDevConnectActionListener implements ActionListener {

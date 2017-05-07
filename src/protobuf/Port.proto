@@ -1,0 +1,51 @@
+syntax = "proto2";
+
+package protobuf.hardware;
+import "Pin.proto";
+
+// Describes a port on a piece of hardware
+message HardwarePort {
+    enum Type {
+        UNKNOWN_TYPE = 0;
+        POWER_IN = 1;
+        POWER_OUT = 2;
+        ANALOG_SIGNAL = 3;
+        DIGITAL_SIGNAL = 4;
+        MIXED_SIGNAL = 5;
+        SWITCH = 6;
+        MIXED = 7;
+    }
+
+    optional uint32 id = 1;          // This port's id on it's board.  The 'namespace' for ids is a board
+                                     // so you can reuse the same port id on different boards.
+    optional string designator = 2;  // The port's designator on the PCB
+    optional bool dev_only = 3;      // Is this port for developers or end users?
+    optional string description = 4; // A description of what the port is for
+    optional string location = 5;    // A description of what the port is for
+    optional Type type = 6;          // What type of port this is
+    repeated HardwarePin pins = 7;   // Pin descriptors
+    optional uint32 num_pins = 8;    // Number of pins
+
+    // These are mostly for type POWER_IN ports
+    optional bool can_power_device = 20;         // True if the device can be powered through this port
+    optional float min_input_voltage = 21;       // The minimum input voltage that can be supplied
+    optional float max_input_voltage = 22;       // The maximum input voltage that can be supplied
+
+    enum Protocol {
+        UNKNOWN_PROTOCOL = 0;
+        I2C = 1;
+        SPI = 2;
+        UART = 3;
+        USART = 4;
+        USB = 5;
+        PDI = 6;
+        SWD = 7;
+    }
+
+    // These are mostly for type DIGITAL_SIGNAL
+    optional Protocol protocol = 30;     //
+
+
+    // Description o
+
+}

@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package protobuf.hardware;
+
+import "Port.proto";
+
+message HardwareTypeDescriptor {
+    optional uint32 hardware_id = 1;     // Hardware type plus revision
+    optional uint32 option_id = 2;       // Hardware options
+    optional string name = 3;            // Hardware options
+    repeated HardwarePort ports = 16;    // Description of each port on the board
+
+    optional float sleep_current_ua = 17;   // in microamps
+    optional float active_current_ma = 18;  // in milliamps
+
+    optional uint32 num_channels = 19;      // The number of channels on the device
+
+}

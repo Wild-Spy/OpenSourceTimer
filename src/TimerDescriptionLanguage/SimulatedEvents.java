@@ -36,6 +36,14 @@ public class SimulatedEvents {
         addEventToTree(event);
     }
 
+    public void setSelectedTreeItem(SimulatedEvent event) {
+        if (tree == null) return;
+        SimulatedEventMutableTreeNode node = findEventInTree(event);
+
+        tree.setSelectionPath(new TreePath(node.getPath()));  //If returned node is null we set sel path to null which means no node selected.
+        tree.updateUI();
+    }
+
     private void addEventToTree(SimulatedEvent event) {
         if (tree == null) return;
 
@@ -164,34 +172,5 @@ public class SimulatedEvents {
         tree.setShowsRootHandles(true);
         tree.updateUI();
     }
-
-//    public void updateUiTreeView(JTree uiTree) {
-//        this.tree = uiTree;
-//        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
-//        DefaultMutableTreeNode root = (DefaultMutableTreeNode)model.getRoot();
-//        root.removeAllChildren();
-//
-//        for (String eventName : getSimulatedEventNames()) {
-//            DefaultMutableTreeNode node = new DefaultMutableTreeNode(eventName);
-//            for (SimulatedEvent eventInst : findEventInstances(eventName)) {
-//                SimulatedEventMutableTreeNode timeNode = new SimulatedEventMutableTreeNode(eventInst);
-//                node.add(timeNode);
-//                eventInst.getMarker().setOnChangeCallback(new GraphMarkerChangedListener() {
-//                    @Override
-//                    public void onChange(DateTime newTime) {
-//                        eventInst.setTime(newTime);
-////                        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
-//                        model.nodeChanged(timeNode);
-//                    }
-//                });
-//            }
-//            tree.expandPath(new TreePath(node));
-//            root.add(node);
-//        }
-//
-//        tree.setRootVisible(false);
-//        tree.setShowsRootHandles(true);
-//        tree.updateUI();
-//    }
 
 }

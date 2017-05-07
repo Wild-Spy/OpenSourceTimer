@@ -16,6 +16,7 @@
       <element id="library" level="project" name="substance-7.0.01" />
       <element id="library" level="project" name="org.ocpsoft.prettytime:prettytime-integration-jstl:4.0.0.Final" />
       <element id="library" level="project" name="joda-time:joda-time:2.9.4" />
+      <element id="file-copy" path="$PROJECT_DIR$/lib/jssc.jar" />
     </root>
   </artifact>
 </component>

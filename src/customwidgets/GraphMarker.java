@@ -147,13 +147,28 @@ public class GraphMarker extends GraphPanelWidget {
         return rect;
     }
 
+    public boolean isVisible() {
+        return !(getX0() == null);
+    }
+
     @Override
     public void mouseMoved(MouseEvent mouseEvent) {
         super.mouseMoved(mouseEvent);
 
         if (mouseDown && dragable) {
             setTime(parent.getXPosition(mouseEvent.getX()));
+
+            parent.updateData();
+            parent.repaint();
         }
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent mouseEvent) {
+        super.mouseReleased(mouseEvent);
+
+        parent.updateData();
+        parent.repaint();
     }
 
     @Override
