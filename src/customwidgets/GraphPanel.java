@@ -1,5 +1,6 @@
 package customwidgets;
 
+import customwidgets.listeners.NeedsUpdatedDataListener;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
 import org.joda.time.Interval;
@@ -8,6 +9,7 @@ import org.joda.time.Period;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import javax.swing.JPanel;
 
@@ -32,29 +34,32 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
 //    private int padding = 25;
 //    private int labelPadding = 25;
-    static final Color lineColor = new Color(145, 145, 145);
-    static final Color pointColor = new Color(100, 100, 100, 180);
-    static final Color gridColor = new Color(200, 200, 200, 200);
-    static final Color backgroundColor = new Color(40, 40, 40);
-    static final Color graphBackgroundColor = new Color(35, 35, 35);
+    public static final Color lineColor = new Color(145, 145, 145);
+    public static final Color pointColor = new Color(100, 100, 100, 180);
+    public static final Color gridColor = new Color(200, 200, 200, 200);
+    public static final Color backgroundColor = new Color(40, 40, 40);
+    public static final Color graphBackgroundColor = new Color(35, 35, 35);
     static final Stroke GRAPH_STROKE = new BasicStroke(1f);
     private int pointWidth = 6;
     private int numberYDivisions = 10;
 
+    private GraphPanelXAxis xAxis = new GraphPanelXAxis(this);
     private List<SubGraph> subGraphs = new ArrayList<>();
     private List<GraphMarker> markers = new ArrayList<>();
     Long[] tWindow = new Long[2];
     private NeedsUpdatedDataListener needsUpdatedDataListener = null;
     private boolean mouseDragging = false;
-    private long mouseDragTimeMs;
+    private Long mouseDragTimeMs;
+    private boolean mouseScrollingXAxis = false;
+    private Point mouseDragStartPoint;
 
 //    Long[] fullTRange = new Long[2];
 
-    private final Period[] possibleXAxisTickPeriods = {Period.seconds(1), Period.seconds(15),
+    final Period[] possibleXAxisTickPeriods = {Period.seconds(1), Period.seconds(15),
             Period.minutes(1), Period.minutes(15), Period.hours(1), Period.hours(6),
             Period.days(1), /*Period.days(5),*/ Period.months(1), Period.years(1)};
 //            Period.days(1), Period.weeks(1), Period.months(1), Period.years(1)};
-    private final Period[] parentTickPeriods = {Period.minutes(1), Period.minutes(1),
+    final Period[] parentTickPeriods = {Period.minutes(1), Period.minutes(1),
             Period.hours(1), Period.hours(1), Period.days(1), Period.days(1),
             Period.months(1), /*Period.months(1),*/ Period.years(1)};
 //    private final Period[] xAxisMajorTickPeriods = {Period.seconds(1), Period.minutes(1),
@@ -97,8 +102,10 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
         throw new IndexOutOfBoundsException("Name " + name + " not found in channel list.");
     }
 
-    public void addMarker(DateTime time, String label) {
-        markers.add(new GraphMarker(this, time, label));
+    public GraphMarker addMarker(DateTime time, String label) {
+        GraphMarker marker = new GraphMarker(this, time, label);
+        markers.add(marker);
+        return marker;
     }
 
     public GraphMarker getMarker(int index) throws IndexOutOfBoundsException {
@@ -170,6 +177,11 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
     boolean isObjectVisible(DateTime startTime, int widthInPixels) {
         return isIntervalVisible(new Interval(startTime.getMillis(),
                 startTime.getMillis() + (int)(widthInPixels/getXPixelsPerMs())));
+    }
+
+    //pixels per ms
+    double getXPixelsPerMs() {
+        return ((double) getWidth() - GraphPanel.leftPanelWidth) / (getWindowDurationMs());
     }
 
     public DateTime getWindowStart() {
@@ -250,7 +262,7 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
         drawBackground(g2);
 
-        drawXAxis(g2);
+        xAxis.draw(g2);
 
         //draw subGraphs
         for (SubGraph c : subGraphs) {
@@ -272,241 +284,6 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
         g2.setColor(backgroundColor);
         g2.fillRect(0, 0, getWidth(), getHeight());
     }
-
-    private void drawXAxis(Graphics2D g2) {
-        drawXaxisMinorBar(g2);
-        drawXaxisMajorBar(g2);
-
-        //new x axis drawing...
-        //Find best spacing - secs/hours/mins/days/weeks/months/years
-        //want at most one tick per ??? pixels.
-        int minPixelsPerTick = 50;
-//        final Period[] possibleXAxisTickPeriods = {Period.seconds(1), Period.minutes(1),
-//            Period.hours(1), Period.days(1), Period.months(1), Period.years(1)};
-
-        Period xAxisTickPeriod = null;
-        for (Period p : possibleXAxisTickPeriods) {
-            try {
-                if (periodToPixels(p) > minPixelsPerTick) {
-                    xAxisTickPeriod = p;
-                    break;
-                }
-            } catch (Exception ex) {}
-        }
-        if (xAxisTickPeriod == null) xAxisTickPeriod = Period.years(1);
-
-        DateTime currentXAxisTick;
-        try {
-            currentXAxisTick = roundToNearestPeriod(getWindowStart(), xAxisTickPeriod);
-
-            while (currentXAxisTick.isBefore(getWindowStop())) {
-                currentXAxisTick = currentXAxisTick.plus(xAxisTickPeriod);
-                if (currentXAxisTick.isBefore(getWindowStart())) continue;
-                drawXAxisLabel(g2, currentXAxisTick, xAxisTickPeriod);
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            return;
-        }
-    }
-
-    private void drawXaxisMinorBar(Graphics2D g2) {
-        Rectangle r = new Rectangle(leftPanelWidth, timeBarMajorAxisHeight,
-                getWidth()-leftPanelWidth, timeBarMinorAxisHeight);
-        Color gradientStart = new Color(75, 75, 75);
-        Color gradientEnd = new Color(60, 60, 60);
-
-        GradientPaint gp = new GradientPaint(new Point(0, r.y), gradientStart,
-                new Point(0, (int)r.getMaxY()), gradientEnd);
-        g2.setPaint(gp);
-        g2.fill(r);
-        g2.setColor(Color.BLACK);
-        g2.draw(r);
-    }
-
-    private void drawXaxisMajorBar(Graphics2D g2) {
-        Rectangle r = new Rectangle(leftPanelWidth, 0,
-                getWidth()-leftPanelWidth, timeBarMajorAxisHeight);
-        Color gradientStart = new Color(75, 75, 75);
-        Color gradientEnd = new Color(60, 60, 60);
-
-        GradientPaint gp = new GradientPaint(new Point(0, r.y), gradientStart,
-                new Point(0, (int)r.getMaxY()), gradientEnd);
-        g2.setPaint(gp);
-        g2.fill(r);
-        g2.setColor(Color.BLACK);
-        g2.draw(r);
-    }
-
-    //pixels per ms
-    double getXPixelsPerMs() {
-        return ((double) getWidth() - leftPanelWidth) / (getWindowDurationMs());
-    }
-
-    private String makeMinorXAxisLabelText(DateTime tickTime, Period xAxisTickPeriod) throws Exception {
-        if (xAxisTickPeriod.getYears() > 0) {
-            return tickTime.toString("YYYY");
-        } else if (xAxisTickPeriod.getMonths() > 0) {
-            return tickTime.toString("MMM");
-        } else if (xAxisTickPeriod.getWeeks() > 0) {
-            return tickTime.toString("d");
-        } else if (xAxisTickPeriod.getDays() > 0) {
-//            return tickTime.toString("E");
-            return tickTime.toString("E d");
-        } else if (xAxisTickPeriod.getHours() > 0) {
-            return tickTime.toString("h a");
-        } else if (xAxisTickPeriod.getMinutes() > 0) {
-            return tickTime.toString("mm");
-        } else if (xAxisTickPeriod.getSeconds() > 0) {
-            return tickTime.toString("ss");
-        } else if (xAxisTickPeriod.getMillis() > 0) {
-            return tickTime.toString("SSS");
-        } else {
-            throw new Exception("invalid period type");
-        }
-    }
-
-    private String makeMajorXAxisLabelText(DateTime tickTime, Period xAxisTickPeriod) throws Exception {
-        if (xAxisTickPeriod.getYears() > 0) {
-            return tickTime.toString("YYYY");
-        } else if (xAxisTickPeriod.getMonths() > 0) {
-            return tickTime.toString("MMM YYYY");
-        } else if (xAxisTickPeriod.getWeeks() > 0) {
-            return tickTime.toString("d MMM");
-        } else if (xAxisTickPeriod.getDays() > 0) {
-//            return tickTime.toString("E");
-            return tickTime.toString("d MMM");
-        } else if (xAxisTickPeriod.getHours() > 0) {
-            return tickTime.toString("h a 'on' MMM d");
-        } else if (xAxisTickPeriod.getMinutes() > 0) {
-            return tickTime.toString("h:mm a");
-        } else if (xAxisTickPeriod.getSeconds() > 0) {
-            return tickTime.toString("h:mm:ss a");
-        } else if (xAxisTickPeriod.getMillis() > 0) {
-            return tickTime.toString("SSS");
-        } else {
-            throw new Exception("invalid period type");
-        }
-    }
-
-    private boolean isMajorXTick(DateTime tickTime, Period xAxisTickPeriod) throws Exception {
-        Period majorTickPeriod = getParentTickPeriod(xAxisTickPeriod);
-        if (majorTickPeriod == null) return false;
-        if (roundToNearestPeriod(tickTime, majorTickPeriod).equals(tickTime)) {
-            return true;
-        }
-        return false;
-    }
-
-    private Period getParentTickPeriod(Period p) {
-        //ie. If we pass in hours, then we return days.
-        //    If we pass in months, we get years. etc.
-
-        //The last value of xAxisMajorTickPeriods is 'year' which doesn't have a parent.. Could do decade?
-        for (int i = 0; i < possibleXAxisTickPeriods.length - 1; i++) {
-            if (p.equals(possibleXAxisTickPeriods[i])) {
-                return parentTickPeriods[i];
-            }
-        }
-        //Otherwise there is no parent
-        return null;
-    }
-
-    private void drawXAxisLabel(Graphics2D g2, DateTime currentXAxisTick, Period xAxisTickPeriod) throws Exception {
-        if (isMajorXTick(currentXAxisTick, xAxisTickPeriod)) {
-            drawTwoTierXAxisLabel(g2, currentXAxisTick.getMillis(),
-                    makeMinorXAxisLabelText(currentXAxisTick, xAxisTickPeriod),
-                    makeMajorXAxisLabelText(currentXAxisTick, getParentTickPeriod(xAxisTickPeriod)));
-        } else {
-            drawSingleTierXAxisLabel(g2, currentXAxisTick.getMillis(),
-                    makeMinorXAxisLabelText(currentXAxisTick, xAxisTickPeriod));
-        }
-    }
-
-    private void drawSingleTierXAxisLabel(Graphics2D g2, long tMs, String xLabel) {
-        drawTwoTierXAxisLabel(g2, tMs, xLabel, "");
-    }
-
-    private void drawTwoTierXAxisLabel(Graphics2D g2, long tMs, String xLabel, String tierTwoLabel) {
-        //variables determining the drawing location on the screen
-        int x0 = getXPositionPixel(tMs);
-        int x1 = x0;
-        int y0 = timeBarHeight;
-        int y1 = timeBarHeight - 10;
-
-//        g2.setColor(gridColor);
-//        g2.drawLine(x0, getHeight() - padding - labelPadding - 1 - pointWidth, x1, padding);
-
-        FontMetrics metrics = g2.getFontMetrics();
-
-        if (tierTwoLabel != null && !tierTwoLabel.isEmpty()) {
-//            int label2Width = metrics.stringWidth(tierTwoLabel);
-            g2.setColor(new Color(163, 163, 163));
-            g2.drawString(tierTwoLabel, x0 + 5 , timeBarMajorAxisHeight - 3);
-            g2.drawLine(x0, y0, x1, timeBarMajorAxisHeight+1);
-            g2.drawLine(x0, timeBarMajorAxisHeight, x1, timeBarMajorAxisHeight/2);
-        } else {
-//            int labelWidth = metrics.stringWidth(xLabel);
-            g2.setColor(new Color(145, 145, 145));
-            g2.drawString(xLabel, x0 - 3, y1 - 3);
-            g2.drawLine(x0, y0, x1, y1);
-        }
-    }
-
-    private DateTime roundToNearestPeriod(DateTime t, Period p) throws Exception {
-        if (p.equals(Period.seconds(1))) {
-            return t.minusMillis(t.getMillisOfSecond());
-
-        } else if (p.equals(Period.seconds(15))) {
-                return t.minusMillis(t.getMillisOfSecond())
-                        .minusSeconds(t.getSecondOfMinute() % 15);
-
-        } else if (p.equals(Period.minutes(1))) {
-            return t.minusMillis(t.getMillisOfSecond())
-                    .minusSeconds(t.getSecondOfMinute());
-
-        } else if (p.equals(Period.minutes(15))) {
-            return t.minusMillis(t.getMillisOfSecond())
-                    .minusSeconds(t.getSecondOfMinute())
-                    .minusMinutes(t.getMinuteOfHour() % 15);
-
-        } else if (p.equals(Period.hours(1))) {
-            return t.minusMillis(t.getMillisOfSecond())
-                    .minusSeconds(t.getSecondOfMinute())
-                    .minusMinutes(t.getMinuteOfHour());
-
-        } else if (p.equals(Period.hours(6))) {
-            return t.minusMillis(t.getMillisOfSecond())
-                    .minusSeconds(t.getSecondOfMinute())
-                    .minusMinutes(t.getMinuteOfHour())
-                    .minusHours(t.getHourOfDay() % 6);
-
-        } else if (p.equals(Period.days(1))) {
-            return t.minusMillis(t.getMillisOfDay());
-
-//        } else if (p.equals(Period.weeks(1))) {
-//            return t.minusMillis(t.getMillisOfDay())
-//                    .minusDays(t.getDayOfWeek());
-
-        } else if (p.equals(Period.months(1))) {
-            return t.minusMillis(t.getMillisOfDay())
-                    .minusDays(t.getDayOfMonth()-1);
-
-        } else if (p.equals(Period.years(1))) {
-            return t.minusMillis(t.getMillisOfDay())
-                    .minusDays(t.getDayOfYear()-1);
-
-        } else {
-            throw new Exception("invalid period type");
-        }
-    }
-
-    private int periodToPixels(Period p) {
-        Duration d = p.toDurationFrom(getWindowStart());
-        int graphWidthPixels = getWidth() - leftPanelWidth;
-        return (int) (graphWidthPixels/(getWindowDurationMs()/d.getMillis()));
-    }
-
 
     private void zoomIn(int xPosPixels) {
         zoomBy(xPosPixels, 0.6);
@@ -541,18 +318,33 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
 
     @Override
     public void mouseDragged(MouseEvent mouseEvent) {
-        if (mouseDragging) {
+        if (mouseDragging && mouseScrollingXAxis) {
             pinWindowToPoint(mouseDragTimeMs, mouseEvent.getX());
             if (needsUpdatedDataListener != null)
                 needsUpdatedDataListener.needsUpdatedData(getWindowInterval());
+        } else {
+            for (GraphMarker marker : markers) {
+                marker.mouseMoved(mouseEvent);
+            }
+            this.repaint();
         }
         //needsUpdatedDataListener
     }
 
     @Override
     public void mouseMoved(MouseEvent mouseEvent) {
+
+        //Check for enter/exit sub objects..
         for (SubGraph c : subGraphs) {
-            c.mouseMoved(mouseEvent);
+            c.parentMouseMoved(mouseEvent);
+        }
+
+        for (GraphMarker marker : markers) {
+            if (marker.mouseInRegion(mouseEvent.getX(), mouseEvent.getY())) {
+                marker.mouseMoved(mouseEvent);
+                mouseScrollingXAxis = false;
+                break;
+            }
         }
 
         this.repaint();
@@ -568,31 +360,68 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
         }
 
         for (SubGraph c : subGraphs) {
-            c.mouseMoved(mouseWheelEvent);
+            c.parentMouseMoved(mouseWheelEvent);
         }
 
         this.repaint();
     }
 
+    public List<GraphMarker> getMarkersReversed() {
+        List<GraphMarker> markersReversed = new ArrayList<>(markers);
+        Collections.reverse(markersReversed);
+        return markersReversed;
+    }
+
     @Override
     public void mouseClicked(MouseEvent mouseEvent) {
-        boolean addEventMode = true;
-        String eventName = "event1";
+        boolean clickedMarker = false;
 
-        if (addEventMode) {
-
+        for (GraphMarker marker : getMarkersReversed()) {
+            if (marker.mouseInRegion(mouseEvent.getX(), mouseEvent.getY())) {
+                marker.mouseClicked(mouseEvent);
+                mouseScrollingXAxis = false;
+                clickedMarker = true;
+                break;
+            }
         }
+
+        if (!clickedMarker) {
+            if (xAxis.mouseInRegion(mouseEvent.getX(), mouseEvent.getY())) {
+                xAxis.mouseClicked(mouseEvent);
+            }
+        }
+
+        this.repaint();
+
     }
 
     @Override
     public void mousePressed(MouseEvent mouseEvent) {
         mouseDragging = true;
+        mouseScrollingXAxis = true;
         mouseDragTimeMs = getXPositionMs(mouseEvent.getX());
+        mouseDragStartPoint = mouseEvent.getPoint();
+
+        for (GraphMarker marker : getMarkersReversed()) {
+            if (marker.mouseInRegion(mouseEvent.getX(), mouseEvent.getY())) {
+                marker.mousePressed(mouseEvent);
+                mouseScrollingXAxis = false;
+                break;
+            }
+        }
+
     }
 
     @Override
     public void mouseReleased(MouseEvent mouseEvent) {
         mouseDragging = false;
+        mouseScrollingXAxis = false;
+        mouseDragTimeMs = null;
+        mouseDragStartPoint = null;
+
+        for (GraphMarker marker : getMarkersReversed()) {
+            marker.mouseReleased(mouseEvent);
+        }
     }
 
     @Override
@@ -604,4 +433,22 @@ public class GraphPanel extends JPanel implements MouseMotionListener, MouseWhee
     public void mouseExited(MouseEvent mouseEvent) {
 
     }
+
+    public void scrollTo(DateTime startTime, DateTime endTime) {
+        setWindow(startTime, endTime);
+        if (needsUpdatedDataListener != null)
+            needsUpdatedDataListener.needsUpdatedData(getWindowInterval());
+    }
+
+    public void scrollTo(DateTime center, Period windowSize) {
+        int windowHalfSeconds = (int)(windowSize.toDurationFrom(center).getMillis()/1000/2);
+        scrollTo(center.minusSeconds(windowHalfSeconds), center.plusSeconds(windowHalfSeconds));
+    }
+
+    public void scrollTo(DateTime center, Duration windowSize) {
+        int windowHalfSeconds = (int)(windowSize.getMillis()/1000/2);
+        if (windowHalfSeconds <= 0) windowHalfSeconds = 1;
+        scrollTo(center.minusSeconds(windowHalfSeconds), center.plusSeconds(windowHalfSeconds));
+    }
+
 }

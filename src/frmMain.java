@@ -1,18 +1,22 @@
 import TimerDescriptionLanguage.*;
 import customwidgets.GraphPanel;
 import customwidgets.GraphPoint;
-import customwidgets.NeedsUpdatedDataListener;
+import customwidgets.listeners.NeedsUpdatedDataListener;
+import customwidgets.SimulatedEventMutableTreeNode;
 import jssc.SerialPortException;
 import jssc.SerialPortList;
 import min.*;
 import min.Frame;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.Duration;
 import org.joda.time.Interval;
 import org.joou.UByte;
+import org.pushingpixels.substance.api.skin.SubstanceGraphiteLookAndFeel;
 
 import javax.swing.*;
 import javax.swing.event.*;
+import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
@@ -23,7 +27,7 @@ import java.util.List;
  */
 public class frmMain implements Runnable {
     private JButton btnUploadToDev;
-    private JPanel panel1;
+    private JPanel panelRoot;
     private JTextArea txtRules;
     private GraphPanel graphPanel1;
     private JLabel lblInfo;
@@ -32,8 +36,12 @@ public class frmMain implements Runnable {
     private JButton btn2;
     private JPanel statusBar;
     private JLabel statusBarLabel;
+    private JTabbedPane tabbedPane1;
+    private JTree treeEvents;
+    private JSplitPane splitPaneMain;
     private DateTime deploymentTime;
     SerialHandler serialHandler = null;
+    JFrame frameRoot;
 
     //private zoomLevel
 
@@ -61,147 +69,18 @@ public class frmMain implements Runnable {
         endFrame.transmit();
     }
 
+    private void setUiColors() {
+        try {
+            UIManager.setLookAndFeel(new SubstanceGraphiteLookAndFeel());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        SwingUtilities.updateComponentTreeUI(frameRoot);
+    }
+
     public frmMain() throws SerialPortException {
-        DateTimeZone.setDefault(DateTimeZone.UTC);
-        this.deploymentTime = new DateTime(2016, 1, 1, 0, 0, 0);
-        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
-                new DateTime(2017, 1, 1, 0, 0, 0)));
-        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
-                new DateTime(2017, 1, 10, 0, 0, 0)));
-        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
-                new DateTime(2017, 3, 1, 0, 0, 0)));
-
-        btn2.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                serialHandler.frame_transmitter.sendGetRuleCount();
-            }
-        });
-
-        btnUploadToDev.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-
-//                List<UByte> data = new ArrayList<>();
-//                data.add(UByte.valueOf(1));
-//                data.add(UByte.valueOf(5));
-//                data.add(UByte.valueOf(2));
-//                Frame pingFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x02), data); //ping
-//                pingFrame.transmit();
-//                return;
-
-//                List<UByte> data = new ArrayList<>();
-//                Frame getRuleCountFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x06), data); //GetRuleCount
-//                getRuleCountFrame.transmit();
-//                return;
-                //serialHandler.frame_transmitter.sendPing();
-                serialHandler.frame_transmitter.sendEraseAllRules();
-                //serialHandler.frame_transmitter.sendGetRuleCount();
-
-//                List<List<UByte>> allCompiled = Rules.getInstance().getAllCompiled();
-//                for (List<UByte> r : allCompiled) {
-//                    txRule(r);
-//                }
-            }
-        });
-
-        btnConnectToDev.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String[] portNames = SerialPortList.getPortNames();
-                System.out.println("Serial Port Names:");
-                for (String name : portNames) {
-                    System.out.println(name);
-                }
-                if (portNames.length > 0) {
-                    try {
-                        //serialHandler = new SerialHandler(portNames[0], 115200, new SerialReceivedFrameHandler());
-                        serialHandler = new SerialHandler(portNames[0], 115200, new FrameReceiver());
-
-                    } catch (SerialPortException e) {
-                        System.out.println("Couldn't connect to device");
-                    }
-                }
-            }
-        });
-
-        updateWindowLabel();
-
-        graphPanel1.addMouseWheelListener(new MouseWheelListener() {
-            @Override
-            public void mouseWheelMoved(MouseWheelEvent mouseWheelEvent) {
-                updateWindowLabel();
-            }
-        });
-
-        graphPanel1.addMouseMotionListener(new MouseInputAdapter() {
-            @Override
-            public void mouseDragged(MouseEvent mouseEvent) {
-                super.mouseDragged(mouseEvent);
-                updateWindowLabel();
-            }
-        });
-
-        txtRules.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent documentEvent) {
-
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent documentEvent) {
-
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent documentEvent) {
-
-            }
-        });
-
-        graphPanel1.addNeedsUpdatedDataListener(new NeedsUpdatedDataListener() {
-            @Override
-            public void needsUpdatedData(Interval window) {
-                regenGraphPoints(window.getStart(), window.getEnd());
-            }
-        });
-
-        btnReparse.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                Rules.resetInstance();
-                try {
-                    List<Rule> r = RuleParser.parseMultiple(txtRules.getText());
-                } catch (Exception ex) {
-                    System.out.println("error!");
-                    ex.printStackTrace();
-                }
-
-                int channelCount = Channels.getInstance().getCount();
-
-                List<Double> scores = new ArrayList<>();
-                List<Long> times = new ArrayList<>();
-                scores.add(0.0);
-                times.add(new DateTime().getMillis());
-                scores.add(1.0);
-                times.add(new DateTime().plusSeconds(1).getMillis());
-
-                graphPanel1.clearAllGraphs();
-                for (int i = 0; i < channelCount; i++) {
-                    //Channel chan = Channels.getInstance().get(i);
-                    graphPanel1.addChannelGraph("Channel " + (i+1), scores, times);
-                }
-                for (int i = 0; i < Rules.getInstance().count(); i++) {
-                    Rule rule = Rules.getInstance().get(i);
-                    graphPanel1.addRuleGraph(rule.getName(), scores, times);
-                }
-
-                regenGraphPoints(graphPanel1.getWindowStart(),
-                        graphPanel1.getWindowStop());
-            }
-        });
-
-        //btnReparse.doClick();
+        JFrame.setDefaultLookAndFeelDecorated(true);
+        JDialog.setDefaultLookAndFeelDecorated(true);
     }
 
     private class SerialReceivedFrameHandler implements ReceivedFrameHandler {
@@ -342,14 +221,185 @@ public class frmMain implements Runnable {
 
     @Override
     public void run() {
-        JFrame frame = new JFrame("WS Open Source Timer");
+        frameRoot = new JFrame("WS Open Source Timer");
         ImageIcon icon = new ImageIcon("src/resources/timer-icon.png");
-        frame.setIconImage(icon.getImage());
-        frame.setContentPane(panel1);
-        frame.setJMenuBar(createMenuBar());
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.pack();
-        frame.setVisible(true);
+        frameRoot.setIconImage(icon.getImage());
+        frameRoot.setContentPane(panelRoot);
+        frameRoot.setJMenuBar(createMenuBar());
+        frameRoot.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frameRoot.pack();
+        frameRoot.setVisible(true);
+        setUiColors();
+//        frameRoot.setBackground(GraphPanel.backgroundColor);
+//        frameRoot.getContentPane().setBackground(GraphPanel.backgroundColor);
+//        setUiColors();
+
+        DateTimeZone.setDefault(DateTimeZone.UTC);
+        this.deploymentTime = new DateTime(2017, 1, 1, 0, 0, 0);
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("1",
+                new DateTime(2017, 1, 3, 0, 0, 0), graphPanel1));
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("1",
+                new DateTime(2017, 1, 10, 0, 0, 0), graphPanel1));
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("1",
+                new DateTime(2017, 3, 1, 0, 0, 0), graphPanel1));
+
+        SimulatedEvents.getInstance().updateUiTreeView(treeEvents);
+        System.out.print(panelRoot.getBackground());
+
+        treeEvents.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent mouseEvent) {
+                super.mouseClicked(mouseEvent);
+                if (mouseEvent.getButton() != 1) return;
+                TreePath tp = treeEvents.getPathForLocation(mouseEvent.getX(), mouseEvent.getY());
+                if (tp != null) {
+//                    if (((SimulatedEventMutableTreeNode) tp.getLastPathComponent()).getUserObject().getClass() == SimulatedEvent.class) {
+                    if (tp.getLastPathComponent().getClass() == SimulatedEventMutableTreeNode.class) {
+                        SimulatedEvents.getInstance().setAllMarkersNotSelected();
+                        SimulatedEvent event = ((SimulatedEventMutableTreeNode) tp.getLastPathComponent()).getEvent();
+                        event.getMarker().setSelected(true);
+//                        graphPanel1.scrollTo(event.getTime(), Period.hours(10));
+                        graphPanel1.scrollTo(event.getTime(), graphPanel1.getWindowDuration());
+                    }
+
+                }
+            }
+        });
+
+        btn2.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                serialHandler.frame_transmitter.sendGetRuleCount();
+            }
+        });
+
+        btnUploadToDev.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                serialHandler.frame_transmitter.sendPrintEeprom((short) 0,128);
+
+//                List<UByte> data = new ArrayList<>();
+//                data.add(UByte.valueOf(1));
+//                data.add(UByte.valueOf(5));
+//                data.add(UByte.valueOf(2));
+//                Frame pingFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x02), data); //ping
+//                pingFrame.transmit();
+//                return;
+
+//                List<UByte> data = new ArrayList<>();
+//                Frame getRuleCountFrame = new Frame(frmMain.this.serialHandler, UByte.valueOf(0x06), data); //GetRuleCount
+//                getRuleCountFrame.transmit();
+//                return;
+                //serialHandler.frame_transmitter.sendPing();
+//                serialHandler.frame_transmitter.sendEraseAllRules();
+                //serialHandler.frame_transmitter.sendGetRuleCount();
+
+//                List<List<UByte>> allCompiled = Rules.getInstance().getAllCompiled();
+//                for (List<UByte> r : allCompiled) {
+//                    txRule(r);
+//                }
+            }
+        });
+
+        btnConnectToDev.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                String[] portNames = SerialPortList.getPortNames();
+                System.out.println("Serial Port Names:");
+                for (String name : portNames) {
+                    System.out.println(name);
+                }
+                if (portNames.length > 0) {
+                    try {
+                        //serialHandler = new SerialHandler(portNames[0], 115200, new SerialReceivedFrameHandler());
+                        serialHandler = new SerialHandler(portNames[0], 115200, new FrameReceiver());
+
+                    } catch (SerialPortException e) {
+                        System.out.println("Couldn't connect to device");
+                    }
+                }
+            }
+        });
+
+        updateWindowLabel();
+
+        graphPanel1.addMouseWheelListener(new MouseWheelListener() {
+            @Override
+            public void mouseWheelMoved(MouseWheelEvent mouseWheelEvent) {
+                updateWindowLabel();
+            }
+        });
+
+        graphPanel1.addMouseMotionListener(new MouseInputAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent mouseEvent) {
+                super.mouseDragged(mouseEvent);
+                updateWindowLabel();
+            }
+        });
+
+        txtRules.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent documentEvent) {
+
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent documentEvent) {
+
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent documentEvent) {
+
+            }
+        });
+
+        graphPanel1.addNeedsUpdatedDataListener(new NeedsUpdatedDataListener() {
+            @Override
+            public void needsUpdatedData(Interval window) {
+                regenGraphPoints(window.getStart(), window.getEnd());
+            }
+        });
+
+        btnReparse.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                Rules.resetInstance();
+                try {
+                    List<Rule> r = RuleParser.parseMultiple(txtRules.getText());
+                } catch (Exception ex) {
+                    System.out.println("error!");
+                    ex.printStackTrace();
+                }
+
+                System.out.print(Rules.getInstance().get(0).compile().toString());
+
+                int channelCount = Channels.getInstance().getCount();
+
+                List<Double> scores = new ArrayList<>();
+                List<Long> times = new ArrayList<>();
+                scores.add(0.0);
+                times.add(new DateTime().getMillis());
+                scores.add(1.0);
+                times.add(new DateTime().plusSeconds(1).getMillis());
+
+                graphPanel1.clearAllGraphs();
+                for (int i = 0; i < channelCount; i++) {
+                    //Channel chan = Channels.getInstance().get(i);
+                    graphPanel1.addChannelGraph("Channel " + (i+1), scores, times);
+                }
+                for (int i = 0; i < Rules.getInstance().count(); i++) {
+                    Rule rule = Rules.getInstance().get(i);
+                    graphPanel1.addRuleGraph(rule.getName(), scores, times);
+                }
+
+                regenGraphPoints(graphPanel1.getWindowStart(),
+                        graphPanel1.getWindowStop());
+            }
+        });
+
+        //btnReparse.doClick();
     }
 
     private void createUIComponents() {
@@ -369,11 +419,15 @@ public class frmMain implements Runnable {
         graphPanel1.addChannelGraph("Channel 4", scores, times);
         graphPanel1.addRuleGraph("a", scores, times);
         graphPanel1.addRuleGraph("B", scores, times);
-        graphPanel1.setFullWindow();
+//        graphPanel1.setFullWindow();
+//        graphPanel1.scrollTo(DateTime.now(), Duration.standardDays(10));
+        graphPanel1.scrollTo(new DateTime(2017, 1, 1, 0, 0), new DateTime(2017, 5, 1, 1, 0, 0));
     }
 
     private JMenuBar createMenuBar() {
         JMenuBar menu_bar = new JMenuBar();
+//        menu_bar.setBackground(GraphPanel.backgroundColor);
+//        menu_bar.setForeground(GraphPanel.gridColor);
         JMenu menu_file = new JMenu("File");
 
         JMenuItem menu_item_new = new JMenuItem("New");
@@ -399,6 +453,18 @@ public class frmMain implements Runnable {
         JMenuItem menu_item_upload = new JMenuItem("Upload Rules To Device");
         menu_item_upload.addActionListener(new MenuDevUploadRulesActionListener());
         menu_device.add(menu_item_upload);
+
+        JMenuItem menu_item_erase = new JMenuItem("Erase All Rules From Device");
+        menu_item_erase.addActionListener(new MenuDevEraseRulesActionListener());
+        menu_device.add(menu_item_erase);
+
+        JMenuItem menu_item_set_time = new JMenuItem("Set Device Time");
+        menu_item_set_time.addActionListener(new MenuDevSetTimeActionListener());
+        menu_device.add(menu_item_set_time);
+
+        JMenuItem menu_item_get_time = new JMenuItem("Get Device Time");
+        menu_item_get_time.addActionListener(new MenuDevGetTimeActionListener());
+        menu_device.add(menu_item_get_time);
 
         menu_bar.add(menu_device);
 
@@ -458,6 +524,54 @@ public class frmMain implements Runnable {
         }
     }
 
+    class MenuDevSetTimeActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+            if (serialHandler == null) {
+                JOptionPane.showMessageDialog(null, "Not connected to a device.", "Warning", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            serialHandler.frame_transmitter.sendSetRtcTime(DateTime.now());
+        }
+    }
+
+    class MenuDevGetTimeActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+            if (serialHandler == null) {
+                JOptionPane.showMessageDialog(null, "Not connected to a device.", "Warning", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            serialHandler.frame_transmitter.sendGetRtcTime();
+        }
+    }
+
+    class MenuDevEraseRulesActionListener implements ActionListener {
+
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+            if (serialHandler == null) {
+                JOptionPane.showMessageDialog(null, "Not connected to a device.", "Warning", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            //Ask are you sure?
+            int result = JOptionPane.showConfirmDialog(null, "Are you sure you want to erase all rules from the device?");
+            if (result != 0) return;
+
+            try {
+                serialHandler.frame_transmitter.sendEraseAllRules();
+                if (serialHandler.received_frame_handler.waitForResponse() != FrameReceiver.ResponseType.Ack) {
+                    System.out.printf("Failed to erase all rules.\r\n");
+                    return;
+                }
+            }  catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+
     class MenuDevUploadRulesActionListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent actionEvent) {
@@ -468,19 +582,51 @@ public class frmMain implements Runnable {
 
             WaitDialog wait_dialog = new WaitDialog("Uploading rules to device...", Rules.getInstance().count());
 
+            //serialHandler.show_raw = true;
 
-            SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
+            SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+
                 @Override
-                protected String doInBackground() throws InterruptedException {
-                    /** Execute some operation */
+                protected Boolean doInBackground() throws InterruptedException {
+                    FrameReceiver.ResponseType response;
+
+                    serialHandler.frame_transmitter.sendEraseAllRules();
+                    if (serialHandler.received_frame_handler.waitForResponse() != FrameReceiver.ResponseType.Ack) {
+                        System.out.printf("Failed to erase all rules.\r\n");
+                        return false;
+                    }
 
                     List<Rule> allRules = Rules.getInstance().getAll();
                     for (Rule r : allRules) {
-                        serialHandler.frame_transmitter.sendRule(r);
+                        System.out.printf("Sending rule %d\r\n", r.getId());
+                        boolean sent_rule_successfully = false;
+                        int send_rule_attempts_remaining = 5;
+                        while (send_rule_attempts_remaining-- > 0 && !sent_rule_successfully) {
+                            serialHandler.frame_transmitter.sendRule(r);
+
+                            response = serialHandler.received_frame_handler.waitForResponse();
+
+                            if (response == FrameReceiver.ResponseType.Ack) {
+                                sent_rule_successfully = true;
+                                wait_dialog.update_text("Sent rule " + r.getId() + " successfully.");
+                            } else {
+                                //retry sending?
+                                sent_rule_successfully = false;
+                                wait_dialog.update_text("Faild to send rule " + r.getId() + ".  Attempts remaining: " + send_rule_attempts_remaining);
+                            }
+                        }
+                        if (!sent_rule_successfully) return false;
                         wait_dialog.increment_update();
-                        Thread.sleep(1000);
                     }
-                    return "";
+
+                    System.out.printf("Save rules...\r\n");
+                    serialHandler.frame_transmitter.sendSaveRules();
+                    if (serialHandler.received_frame_handler.waitForResponse() != FrameReceiver.ResponseType.Ack) {
+                        System.out.printf("Failed to save rules.\r\n");
+                        return false;
+                    }
+
+                    return true;
                 }
                 @Override
                 protected void done() {
@@ -488,12 +634,28 @@ public class frmMain implements Runnable {
                 }
             };
 
+            System.out.printf("worker.execute();\r\n");
             worker.execute();
+            System.out.printf("wait_dialog.setVisible(true);\r\n");
             wait_dialog.setVisible(true);
+
+//            while (!worker.isDone()) { //1 second timeout
+//                try {
+//                    Thread.sleep(10); //sleep for 10ms
+//                } catch (Exception e) {}
+//            }
+
             try {
-                worker.get();
+                System.out.printf("Boolean result = worker.get();\r\n");
+                Boolean result = worker.get();
+                if (result) {
+                    JOptionPane.showMessageDialog(null, "Successfully transmitted " + Rules.getInstance().count() + " rules.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(null, "Error transmitting " + Rules.getInstance().count() + " rules.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                }
             } catch (Exception e1) {
                 e1.printStackTrace();
+                JOptionPane.showMessageDialog(null, "Error transmitting " + Rules.getInstance().count() + " rules. Exception thrown.", "Info", JOptionPane.ERROR_MESSAGE);
             }
             return;
 

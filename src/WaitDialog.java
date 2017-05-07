@@ -35,10 +35,12 @@ public class WaitDialog extends JDialog {
             }
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
 
-        displayLabel.setText(display_text);
+        int n = 100;
+        displayLabel.setText(String.format("%0" + n + "d", 0).replace("0", "a"));
         progressBar.setMaximum(max_prog);
 
         pack();
+        displayLabel.setText(display_text);
     }
 
     public void update(int progress) {

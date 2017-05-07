@@ -16,7 +16,7 @@ public class TDLCompilingTest {
     private void assertCompiledListsEqual(List<UByte> actual, List<UByte> expected) {
         Assert.assertEquals(actual.size(), expected.size());
         for (int i = 0; i < actual.size(); i++) {
-            Assert.assertEquals(actual.get(i), expected.get(i));
+            Assert.assertEquals(actual.get(i), expected.get(i), "At index " + String.valueOf(i) + " of array.");
         }
     }
 
@@ -29,6 +29,7 @@ public class TDLCompilingTest {
         expected.add(UByte.valueOf(Action.ACTION_TARGET_CHANNEL));
         expected.addAll(SerialHandler.min_encode_16((short)0));
         expected.add(UByte.valueOf(0));
+        expected.add(UByte.valueOf(1));
 
         assertCompiledListsEqual(compiled, expected);
     }

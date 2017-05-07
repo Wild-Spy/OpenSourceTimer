@@ -3,9 +3,13 @@ package customwidgets;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.ocpsoft.prettytime.PrettyTime;
+import org.ocpsoft.prettytime.impl.ResourcesTimeFormat;
+import org.ocpsoft.prettytime.units.JustNow;
+import org.ocpsoft.prettytime.units.Second;
 
 import java.awt.*;
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by mcochrane on 24/11/16.
@@ -120,6 +124,7 @@ public class GraphIntervalMarker {
 
     public static String humanReadableFormat(Interval interval) {
         PrettyTime p = new PrettyTime(new Date(interval.getEndMillis()));
+        p.removeUnit(JustNow.class); // This stops it from printing 'moments ago for durations < 5 minutes'
         String retStr = p.format(new Date(interval.getStartMillis()));
         return retStr.substring(0, retStr.length()-4);
     }

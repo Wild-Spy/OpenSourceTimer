@@ -3,7 +3,6 @@ package TimerDescriptionLanguage;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.joda.time.Period;
-import org.joda.time.PeriodType;
 import org.joou.UByte;
 
 import java.util.ArrayList;
@@ -52,8 +51,8 @@ public class PeriodInterval {
     List<UByte> compile() {
         List<UByte> compiledPeriodList = new ArrayList<>();
 
-        compiledPeriodList.addAll(PeriodCompilier.compilePeriod(start));
-        compiledPeriodList.addAll(PeriodCompilier.compilePeriod(end));
+        compiledPeriodList.addAll(PeriodCompiler.compilePeriod(start));
+        compiledPeriodList.addAll(PeriodCompiler.compilePeriod(end));
 
         return compiledPeriodList;
     }

@@ -13,6 +13,9 @@ import java.awt.geom.Point2D;
 import java.beans.Transient;
 import java.io.Serializable;
 
+/**
+ * A 2d point where each coordinate is a double.
+ */
 public class DoublePoint extends Point2D implements Serializable {
     public double x;
     public double y;

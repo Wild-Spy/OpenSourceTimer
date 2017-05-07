@@ -48,8 +48,8 @@ public class Frame {
      * @return an array of high byte then low byte (big-endian order on the wire)
      */
     List<UByte> checksum() {
-        int sum1 = 0xff;
-        int sum2 = 0xff;
+        long sum1 = 0xff;
+        long sum2 = 0xff;
 
         List<UByte> checksummed_data = getRawWithoutPayload();
 
@@ -63,10 +63,12 @@ public class Frame {
             sum2 = (sum2 & 0x00ff) + (sum2 >> 8);
         }
 
-        int checksum = ((sum2 << 8) & 0xffff) | sum1;
+        sum1 = (sum1 & 0x00ff) + (sum1 >> 8);
+        sum2 = (sum2 & 0x00ff) + (sum2 >> 8);
+        long checksum = ((sum2 << 8) & 0xffff) | sum1;
 
-        int high_byte = (checksum & 0xff00) >> 8;
-        int low_byte = checksum & 0x00ff;
+        long high_byte = (checksum & 0xff00) >> 8;
+        long low_byte = checksum & 0x00ff;
 
         List<UByte> ret = new ArrayList<>();
         ret.add(UByte.valueOf(high_byte));
@@ -100,6 +102,15 @@ public class Frame {
         s += String.format("Payload: %s\n", parts);
 
         return s;
+    }
+
+    public String payloadToCharString() {
+        String str = "";
+        for (UByte b : payload) {
+            str += String.format("%c", b.intValue());
+        }
+
+        return str;
     }
 
     /**

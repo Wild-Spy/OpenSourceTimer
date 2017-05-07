@@ -3,9 +3,7 @@ package TimerDescriptionLanguage;
 import org.joda.time.DateTime;
 import org.joda.time.Period;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by mcochrane on 14/11/16.
@@ -14,6 +12,10 @@ public class RuleParser {
 
     private static final String SPACE = " ";
 
+    public static class VarStore extends HashMap<String, String> {}
+
+    public static int lineNumber = 0;
+
     private RuleParser() {
 
     }
@@ -21,10 +23,72 @@ public class RuleParser {
     public static List<Rule> parseMultiple(String text) throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
         String[] ruleStrings = text.split("\n");
         List<Rule> rules = new ArrayList<>();
+        VarStore varStore = new VarStore();
+        lineNumber = 0;
         for (String s : ruleStrings) {
-            rules.add(parse(s));
+            lineNumber++;
+            s = removeCommentFromLine(s);
+            s = handleVariablesInLine(s, varStore, text);
+            if (s.replaceAll(SPACE, "").replaceAll("\t", "").length() != 0)
+                rules.add(parse(s));
         }
         return rules;
+    }
+
+    /**
+     * Variables are named like in php.  They are single words starting with a $
+     * @param line
+     * @param varStore
+     * @return
+     */
+    public static String handleVariablesInLine(String line, VarStore varStore, String allCode) throws InvalidSyntaxException {
+        line = normalizeSpace(line);
+        if (line.startsWith("var $")) {
+            //example:
+            //var $myvar = abc123
+            //next word is the var name
+            int varNameEnd = line.indexOf(SPACE, 4);
+            if (varNameEnd == -1)
+                throw new InvalidSyntaxException(allCode, lineNumber, "Expected a variable name after 'var' on a new line.  Variable names must start with $.");
+            String newVarName = line.substring(5, varNameEnd);
+//            line = line.replaceAll(SPACE, "");
+            int valueStart = line.indexOf("=");
+            if (valueStart == -1)
+                throw new InvalidSyntaxException(allCode, lineNumber, "Expected a '=' after variable name declaration.");
+            if (Objects.equals(line.substring(valueStart+1, valueStart + 2), " "))
+                valueStart++;
+            String newVarValue = line.substring(valueStart+1);
+
+            varStore.put(newVarName, newVarValue);
+            line = "";
+        } else {
+            int varIndex = line.indexOf("$");
+            while (varIndex != -1) {
+                int varEndIndex = line.indexOf(SPACE, varIndex);
+                String varName = "";
+                if (varEndIndex == -1) {
+                    varName = line.substring(varIndex+1);
+                } else {
+                    varName = line.substring(varIndex+1, varEndIndex);
+                }
+
+                if (!varStore.containsKey(varName))
+                    throw new InvalidSyntaxException(allCode, lineNumber, "Unknown variable name $" + varName + ".");
+
+                line = line.replace("$" + varName, varStore.get(varName));
+
+                varIndex = line.indexOf("$");
+            }
+        }
+        return line;
+    }
+
+    public static String removeCommentFromLine(String line) {
+        int index = line.indexOf("//");
+        if (index != -1) {
+            line = line.substring(0, index);
+        }
+        return line;
     }
 
     public static Rule parse(String text) throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {

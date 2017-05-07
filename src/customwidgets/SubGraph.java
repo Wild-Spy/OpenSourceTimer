@@ -456,7 +456,7 @@ public class SubGraph {
         }
     }
 
-    void mouseMoved(MouseEvent mouseEvent) {
+    void parentMouseMoved(MouseEvent mouseEvent) {
         updateCursor(mouseEvent);
 
         if (isMouseInBounds(mouseEvent)) {

@@ -137,4 +137,13 @@ public class PeriodIntervalParserTest {
         assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on the 1st, 5th, 8th month of"),
                 TimeHelper.onMonths(1, 5, 8));
     }
+
+    @Test
+    public void testOnOfImplicitDayPeriod() throws InvalidSyntaxException {
+        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on the 1st of", TimeHelper.makePeriodMonths(1)),
+                TimeHelper.onDays(1));
+
+        assertEqualsPeriodIntervalList(PeriodIntervalParser.parse("on the 1st, 5th, 8th of", TimeHelper.makePeriodMonths(1)),
+                TimeHelper.onDays(1, 5, 8));
+    }
 }

@@ -469,11 +469,31 @@ public class Rule {
     //Compile
     public List<UByte> compile() {
         List <UByte> compiledRule = new ArrayList<>();
+        compiledRule.add(UByte.valueOf(getId()));
+        compiledRule.add(UByte.valueOf(enabledOnStart?1:0));
         compiledRule.addAll(action.compile());
-        compiledRule.addAll(PeriodCompilier.compilePeriod(period));
+        compiledRule.addAll(PeriodCompiler.compilePeriod(period));
         compiledRule.addAll(compileIntervals());
+        compiledRule.addAll(DateTimeCompiler.compileDateTime(startOfFirstPeriod));
+        compiledRule.addAll(PeriodCompiler.compilePeriod(startOfFirstPeriodEventDelay));
+        compiledRule.add(UByte.valueOf(0));
+        //TODO: instead of 0 pass startoffirstperiodeventid for the last one.
 
 
+        //TODO: want startoffirstperiod!?!?
+        //TODO: want startoffirstperiodeventdelay
+        //TODO: want startoffirstperiodeventid
+
+
+//        this.action = action;
+//        this.intervals = intervals;
+//        this.period = period;
+//        this.enabledOnStart = enabled;
+//        this.enabled = enabled;
+//        this.name = name;
+//        this.startOfFirstPeriod = null;
+//        this.startOfFirstPeriodEventName = eventName;
+//        this.startOfFirstPeriodEventDelay = eventDelay;
         return compiledRule;
     }
 

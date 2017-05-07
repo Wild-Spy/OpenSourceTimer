@@ -1,0 +1,60 @@
+//this lines up with both the python and the xmega code now...
+
+#include <stdio.h>
+#include <stdint.h>
+
+// uint16_t fletcher16( uint8_t const *data, size_t bytes )
+// {
+//         uint16_t sum1 = 0xff, sum2 = 0xff;
+//         size_t tlen;
+
+//         while (bytes) {
+//                 tlen = ((bytes >= 20) ? 20 : bytes);
+//                 bytes -= tlen;
+//                 do {
+//                         sum2 += sum1 += *data++;
+//                         tlen--;
+//                 } while (tlen);
+//                 sum1 = (sum1 & 0xff) + (sum1 >> 8);
+//                 sum2 = (sum2 & 0xff) + (sum2 >> 8);
+//         }
+//         /* Second reduction step to reduce sums to 8 bits */
+//         sum1 = (sum1 & 0xff) + (sum1 >> 8);
+//         sum2 = (sum2 & 0xff) + (sum2 >> 8);
+//         return (sum2 << 8) | sum1;
+// }
+
+uint16_t fletcher16( uint8_t const *data, size_t bytes )
+{
+        uint16_t sum1 = 0xff, sum2 = 0xff;
+        size_t tlen;
+
+        while (bytes) {
+                sum2 += sum1 += *data++;
+                // sum2 += sum1;
+                bytes--;
+                sum1 = (sum1 & 0xff) + (sum1 >> 8);
+                sum2 = (sum2 & 0xff) + (sum2 >> 8);
+        }
+
+        /* Second reduction step to reduce sums to 8 bits */
+        sum1 = (sum1 & 0xff) + (sum1 >> 8);
+        sum2 = (sum2 & 0xff) + (sum2 >> 8);
+        return (sum2 << 8) | sum1;
+}
+
+int main()
+{
+    uint8_t data[] = {4, 15, 0, 30, 1, 0, 1, 4, 0, 0, 0, 1, 255, 255, 255, 255, 0};
+
+    uint16_t chksum = fletcher16(data, 17);
+    printf("checksum = %u\n", chksum);
+
+    // int i;
+    // for (i = 0; i < 15; i++) {
+    //     printf("data[%u] = %u\n", i, data[i]);
+    // }
+
+    return 0;
+}
+

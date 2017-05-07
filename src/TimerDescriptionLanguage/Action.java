@@ -71,14 +71,22 @@ public class Action {
         }
     }
 
-    private UByte compileDefaultState() {
-        if (activator.getDefaultState().equals(ActivatorState.DISABLED)) {
+    private UByte compileActivatorState(ActivatorState actState) {
+        if (actState.equals(ActivatorState.DISABLED)) {
             return UByte.valueOf(0);
-        } else if (activator.getDefaultState().equals(ActivatorState.ENABLED)) {
+        } else if (actState.equals(ActivatorState.ENABLED)) {
             return UByte.valueOf(1);
         } else {
             return UByte.valueOf(255);
         }
+    }
+
+    private UByte compileDefaultState() {
+        return compileActivatorState(activator.getDefaultState());
+    }
+
+    private UByte compileStateWhenRunning() {
+        return compileActivatorState(getActivatorStateWhenRunning());
     }
 
     List<UByte> compile() {
@@ -89,6 +97,7 @@ public class Action {
         compiledAction.add(UByte.valueOf(targetType));
         compiledAction.addAll(SerialHandler.min_encode_16((short)activator.getTargetId()));
         compiledAction.add(compileDefaultState());
+        compiledAction.add(compileStateWhenRunning());
 
         return compiledAction;
     }

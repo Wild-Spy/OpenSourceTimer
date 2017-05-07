@@ -2,7 +2,9 @@ package min;
 
 import TimerDescriptionLanguage.Rule;
 import TimerDescriptionLanguage.Rules;
+import org.joda.time.DateTime;
 import org.joou.UByte;
+import org.joou.UInteger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +23,10 @@ public class FrameTransmitter {
     private static final int MIN_ID_GET_RULE_WITH_ID        = 0x07;
     private static final int MIN_ID_GET_ALL_RULES           = 0x08;
     private static final int MIN_ID_ERASE_ALL_RULES         = 0x09;
+    private static final int MIN_ID_GET_RTC_TIME            = 0x0a;
+    private static final int MIN_ID_SET_RTC_TIME            = 0x0b;
+    private static final int MIN_ID_SAVE_RULES              = 0x0c;
+    private static final int MIN_ID_PRINT_EEPROM            = 0x0d;
 
     private SerialHandler serialHandler;
 
@@ -68,10 +74,13 @@ public class FrameTransmitter {
     }
 
     public void sendCompiledRule(List<UByte> compiledRule) {
-        sendRuleStart(compiledRule);
-        sendRuleData(compiledRule);
-        sendRuleEnd();
-        //TODO: wait for response
+        try {
+            Thread.sleep(100);
+            sendRuleStart(compiledRule);
+            Thread.sleep(100);
+            sendRuleData(compiledRule);
+            sendRuleEnd();
+        } catch (Exception e) {}
     }
 
     private void sendRuleStart(List<UByte> compiledRule) {
@@ -81,15 +90,16 @@ public class FrameTransmitter {
         sendFrame(MIN_ID_RULE_START_RECEIVE, data);
     }
 
-    private void sendRuleData(List<UByte> compiledRule) {
+    private void sendRuleData(List<UByte> compiledRule) throws Exception {
         List<UByte> data;
         int startIndex = 0;
         while (startIndex < compiledRule.size()) {
-            int endIndex = startIndex + 32;
+            int endIndex = startIndex + 15;
             if (endIndex > compiledRule.size()) endIndex = compiledRule.size();
             data = compiledRule.subList(startIndex, endIndex);
             sendFrame(MIN_ID_RULE_DATA_RECEIVE, data);
-            startIndex += 32;
+            Thread.sleep(100);
+            startIndex = endIndex;
         }
     }
 
@@ -97,6 +107,40 @@ public class FrameTransmitter {
         List<UByte> data = new ArrayList<>();
         data.add(UByte.valueOf(0));
         sendFrame(MIN_ID_RULE_END_RECEIVE, data);
+    }
+
+    public void sendGetRtcTime() {
+        List<UByte> data = new ArrayList<>();
+        data.add(UByte.valueOf(0));
+        sendFrame(MIN_ID_GET_RTC_TIME, data);
+    }
+
+    public void sendSetRtcTime(DateTime dateTime) {
+        List<UByte> data = new ArrayList<>();
+
+//        private DateTime y2kEpochIntToDateTime(long y2k_time_secs) {
+//            long unix_y2k_offset_secs = 946684800; //in seconds
+//            long unix_time_secs = y2k_time_secs + unix_y2k_offset_secs;
+//            return new DateTime(unix_time_secs*1000);
+//        }
+        long unix_y2k_offset_secs = 946684800; //in seconds
+
+        data.addAll(SerialHandler.min_encode_u32((int)((dateTime.getMillis() / 1000) - unix_y2k_offset_secs)));
+
+        sendFrame(MIN_ID_SET_RTC_TIME, data);
+    }
+
+    public void sendSaveRules() {
+        List<UByte> data = new ArrayList<>();
+        data.add(UByte.valueOf(0));
+        sendFrame(MIN_ID_SAVE_RULES, data);
+    }
+
+    public void sendPrintEeprom(short start_index, int length) {
+        List<UByte> data = new ArrayList<>();
+        data.addAll(SerialHandler.min_encode_u16(start_index));
+        data.add(UByte.valueOf(length));
+        sendFrame(MIN_ID_PRINT_EEPROM, data);
     }
 
 }

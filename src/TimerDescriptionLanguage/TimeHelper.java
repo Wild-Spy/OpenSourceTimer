@@ -102,13 +102,17 @@ public final class TimeHelper {
 //        return null;
     }
 
+
     public static DurationFieldType getLongestDurationFieldType(Period period) {
+        // This is the new version of this function that updates based on the field types only!
+        // ie if a period has a field of 10 weeks and another of 1 month, the returned DurationFieldType
+        // will be months, not weeks!
         DateTime durationStartTime = new DateTime(2015, 1, 1, 0, 0, 0);
         DurationFieldType types[] = period.getFieldTypes();
         Period longest_duration = makePeriodMillis(0);
         DurationFieldType longest_duration_type = null;
         for (DurationFieldType t : types) {
-            Period tp = makePeriodCustom(period.get(t), t);
+            Period tp = makePeriodCustom(period.get(t) == 0 ? 0 : 1, t);
             if (tp.toDurationFrom(durationStartTime).getMillis() >
                     longest_duration.toDurationFrom(durationStartTime).getMillis()) {
                 longest_duration = tp;
@@ -123,6 +127,31 @@ public final class TimeHelper {
 
         return longest_duration_type;
     }
+
+//    public static DurationFieldType getLongestDurationFieldType(Period period) {
+//        // This is the old version of this function that updates based on the value and the field type!
+//        // ie if a period has a field of 10 weeks and another of 1 month, the returned DurationFieldType
+//        // will be weeks, not months!
+//        DateTime durationStartTime = new DateTime(2015, 1, 1, 0, 0, 0);
+//        DurationFieldType types[] = period.getFieldTypes();
+//        Period longest_duration = makePeriodMillis(0);
+//        DurationFieldType longest_duration_type = null;
+//        for (DurationFieldType t : types) {
+//            Period tp = makePeriodCustom(period.get(t), t);
+//            if (tp.toDurationFrom(durationStartTime).getMillis() >
+//                    longest_duration.toDurationFrom(durationStartTime).getMillis()) {
+//                longest_duration = tp;
+//                longest_duration_type = t;
+//            }
+//        }
+//
+////        if (longest_duration_type == null) {
+////            //error....
+////            //perhaps return ms?
+////        }
+//
+//        return longest_duration_type;
+//    }
 
 
     //PeriodIntervals

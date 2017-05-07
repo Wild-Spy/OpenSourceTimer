@@ -5,6 +5,7 @@ import jssc.SerialPortException;
 
 import org.joou.UByte;
 import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * This class handles the serial port and sends frames to the port and receives them from the port.
@@ -27,19 +28,17 @@ public class SerialHandler {
     private int payload_bytes_to_go = 0;
     private Frame frame = null;
     private SerialPort serial;
-    private ReceivedFrameHandler received_frame_handler;
+    public FrameReceiver received_frame_handler;
     public FrameTransmitter frame_transmitter;
     Queue<List<UByte>> send_queue;// = new PriorityQueue<>();
-    private Thread receive_thread;
-    private Thread send_thread;
 
-    private boolean show_raw = false;
-    private boolean quiet = false;
+    public boolean show_raw = false;
+//    public boolean quiet = false;
 
     private Receiver receiver;
     private Sender sender;
 
-    public SerialHandler(String port, int baudrate, ReceivedFrameHandler received_frame_handler)
+    public SerialHandler(String port, int baudrate, FrameReceiver received_frame_handler)
             throws jssc.SerialPortException {
         this.state = State.SOF;
         this.serial = new SerialPort(port);
@@ -52,13 +51,14 @@ public class SerialHandler {
         this.received_frame_handler = received_frame_handler;
 
         // Initialize receiver and sender threads
-        this.send_queue = new PriorityQueue<>();
+        //this.send_queue = new PriorityQueue<>();
+        this.send_queue = new LinkedBlockingQueue<>();
 
         this.receiver = new Receiver();
         this.sender = new Sender();
 
-        receive_thread = new Thread(this.receiver);
-        send_thread = new Thread(this.sender);
+        Thread receive_thread = new Thread(this.receiver);
+        Thread send_thread = new Thread(this.sender);
 
         receive_thread.setDaemon(true);
         send_thread.setDaemon(true);
@@ -128,7 +128,7 @@ public class SerialHandler {
                     //println("sender_thread");
                     List<UByte> frame_data = SerialHandler.this.send_queue.remove();
                     if (show_raw) {
-                        //printfln("Data TX on wire: %s" % ':'.join('0x{:02x}'.format(i) for i in frame_data))
+                        printfln("Data TX on wire: " + frame_data);
                     }
                     SerialHandler.this.serial.writeBytes(ubyteListToByteArray(frame_data));
                 } catch (NoSuchElementException | SerialPortException ex) {
@@ -227,6 +227,7 @@ public class SerialHandler {
             if (!ubyteListsEqual(checksum_bytes, frame_checksum_bytes)) {
                 //Checksum failure, drop it and look for a new one
                 println("FAILED CHECKSUM");
+//                this.state = State.EOF;
                 this.state = State.SOF;
             }else {
                 this.state = State.EOF;
@@ -270,8 +271,38 @@ public class SerialHandler {
         return -1;
     }
 
+    // Decoder MIN network order 16-bit and 32-bit words
+    public static long min_decode_unsigned(List<UByte> data) {
+        if (data.size() == 1) {
+            // 8-bit integer (unsigned..)
+            return data.get(0).intValue();
+        }else if (data.size() == 2) {
+            // 16-bit big-endian integer
+            return (data.get(0).intValue() << 8) | (data.get(1).intValue());
+        } else if (data.size() == 4) {
+            // 32-bit big-endian integer
+            return (data.get(0).longValue() << 24) |
+                    (data.get(1).longValue() << 16) |
+                    (data.get(2).longValue() << 8) |
+                    (data.get(3).longValue());
+        }
+        return -1;
+    }
+
     // Encode a 32-bit integer into MIN network order bytes
     public static List<UByte> min_encode_32(int x) {
+        List<UByte> ret = new ArrayList<>();
+        ret.add(UByte.valueOf((x & 0xff000000) >> 24));
+        ret.add(UByte.valueOf((x & 0x00ff0000) >> 16));
+        ret.add(UByte.valueOf((x & 0x0000ff00) >> 8));
+        ret.add(UByte.valueOf((x & 0x000000ff)));
+
+        return ret;
+    }
+
+    // Encode a 32-bit integer into MIN network order bytes
+    public static List<UByte> min_encode_u32(long x) {
+//        if (x > 0xFFFFFFFF) throw new ArithmeticException();
         List<UByte> ret = new ArrayList<>();
         ret.add(UByte.valueOf((x & 0xff000000) >> 24));
         ret.add(UByte.valueOf((x & 0x00ff0000) >> 16));
@@ -290,32 +321,42 @@ public class SerialHandler {
         return ret;
     }
 
-    /**
-     * Called when a MIN frame has been received successfully from the serial line
-     * @param frame the Frame that was received
-     * @see Frame
-     */
-    // Called when a MIN frame has been received successfully from the serial line
-    private void received_frame(Frame frame) {
-        UByte message_id = frame.get_id();
-        List<UByte> data = frame.get_payload();
+    // Encode a 16-bit integer into MIN network order bytes
+    public static List<UByte> min_encode_u16(int x) {
+//        if (x > 0xFFFF) throw new ArithmeticException();
+        List<UByte> ret = new ArrayList<>();
+        ret.add(UByte.valueOf((x & 0x0000ff00) >> 8));
+        ret.add(UByte.valueOf((x & 0x000000ff)));
 
-        if (!quiet) {
-            if (message_id.equals(UByte.valueOf(0x0e))) {      // Deadbeef message
-                //print("RX deadbeef: " + ':'.join('{:02x}'.format(i) for i in data))
-                println("RX deadbeef: " );
-            } else if (message_id.equals(UByte.valueOf(0x23))) {            // Environment message
-                double temperature = -20.0 + (min_decode(data.subList(0, 2)) *0.0625);
-                double humidity = min_decode(data.subList(2, 4)) * 0.64;
-                printfln("Environment: temperature=%fC, humidity=%f%", temperature, humidity);
-            } else if (message_id.equals(UByte.valueOf(0x24))) {            // Motor status message
-                UByte status = data.get(0);
-                Integer position = min_decode(data.subList(1, 5));
-                printfln("Motor: status=%d, position=%d", status.intValue(), position);
-            } else if (message_id.equals(UByte.valueOf(0x02))) {
-                println("Ping received");
-                //print("Ping received: " + ':'.join('{:02x}'.format(i) for i in data));
-            }
-        }
+        return ret;
     }
+
+//    /**
+//     * Called when a MIN frame has been received successfully from the serial line
+//     * @param frame the Frame that was received
+//     * @see Frame
+//     */
+//    // Called when a MIN frame has been received successfully from the serial line
+//    private void received_frame(Frame frame) {
+//        UByte message_id = frame.get_id();
+//        List<UByte> data = frame.get_payload();
+//
+//        if (!quiet) {
+//            if (message_id.equals(UByte.valueOf(0x0e))) {      // Deadbeef message
+//                //print("RX deadbeef: " + ':'.join('{:02x}'.format(i) for i in data))
+//                println("RX deadbeef: " );
+//            } else if (message_id.equals(UByte.valueOf(0x23))) {            // Environment message
+//                double temperature = -20.0 + (min_decode(data.subList(0, 2)) *0.0625);
+//                double humidity = min_decode(data.subList(2, 4)) * 0.64;
+//                printfln("Environment: temperature=%fC, humidity=%f%", temperature, humidity);
+//            } else if (message_id.equals(UByte.valueOf(0x24))) {            // Motor status message
+//                UByte status = data.get(0);
+//                Integer position = min_decode(data.subList(1, 5));
+//                printfln("Motor: status=%d, position=%d", status.intValue(), position);
+//            } else if (message_id.equals(UByte.valueOf(0x02))) {
+//                println("Ping received");
+//                //print("Ping received: " + ':'.join('{:02x}'.format(i) for i in data));
+//            }
+//        }
+//    }
 }
