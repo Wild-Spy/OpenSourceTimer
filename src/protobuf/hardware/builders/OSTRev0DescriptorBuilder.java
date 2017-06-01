@@ -26,7 +26,7 @@ public class OSTRev0DescriptorBuilder extends DescriptorBuilder {
         HardwareTypeDescriptor.Builder builder = HardwareTypeDescriptor.newBuilder();
         builder.setHardwareId(0x2000);
         builder.setOptionId(0x0000);
-        builder.setName("Wild Spy Open Source Timer Rev 0 (prototype)");
+        builder.setName("Wild Spy Open Source Timer Rev 0");
         builder.setActiveCurrentMa(6.0f);
         builder.setSleepCurrentUa(5.7f);
         builder.setNumChannels(4);

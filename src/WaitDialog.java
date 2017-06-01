@@ -44,17 +44,32 @@ public class WaitDialog extends JDialog {
     }
 
     public void update(int progress) {
-        progressBar.setValue(progress);
-        progressBar.updateUI();
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                progressBar.setValue(progress);
+                progressBar.updateUI();
+            }
+        });
     }
 
     public void increment_update() {
-        progressBar.setValue(progressBar.getValue()+1);
-        progressBar.updateUI();
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                progressBar.setValue(progressBar.getValue()+1);
+                progressBar.updateUI();
+            }
+        });
     }
 
     public void update_text(String text) {
-        displayLabel.setText(text);
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                displayLabel.setText(text);
+            }
+        });
     }
 
     private void onAbort() {
