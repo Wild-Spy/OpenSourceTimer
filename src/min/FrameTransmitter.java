@@ -27,7 +27,9 @@ public class FrameTransmitter {
     private static final int MIN_ID_SET_RTC_TIME            = 0x0b;
     private static final int MIN_ID_SAVE_RULES              = 0x0c;
     private static final int MIN_ID_PRINT_EEPROM            = 0x0d;
-    private static final int MIN_ID_GET_DEV_INFO            = 0x0e;
+    private static final int MIN_ID_GET_DEVICE_TYPE         = 0x0e;
+//    private static final int MIN_ID_GET_DEVICE_FW_VER       = 0x0f; //firmware version
+//    private static final int MIN_ID_GET_DEV_INFO            = 0x10;
 
     private SerialHandler serialHandler;
 
@@ -142,6 +144,12 @@ public class FrameTransmitter {
         data.addAll(SerialHandler.min_encode_u16(start_index));
         data.add(UByte.valueOf(length));
         sendFrame(MIN_ID_PRINT_EEPROM, data);
+    }
+
+    public void sendGetDeviceType() {
+        List<UByte> data = new ArrayList<>();
+        data.add(UByte.valueOf(0));
+        sendFrame(MIN_ID_GET_DEVICE_TYPE, data);
     }
 
 }

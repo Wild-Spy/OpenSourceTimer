@@ -71,6 +71,9 @@ public class WaitDialog extends JDialog {
             }
         });
     }
+    public int get_progress() {
+        return progressBar.getValue();
+    }
 
     private void onAbort() {
         // add your code here if necessary

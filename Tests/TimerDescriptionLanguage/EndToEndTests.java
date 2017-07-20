@@ -263,6 +263,60 @@ public class EndToEndTests {
     }
 
     @Test
+    public void testRuleOnEvent()
+            throws InvalidSyntaxException, Rules.RuleAlreadyExists, Rule.InvalidIntervalException {
+        RuleParser.parseMultiple("enable channel 1 for one hour starting on event event1");
+
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
+                new DateTime(2017, 1, 1, 5, 0, 0)));
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
+                new DateTime(2017, 1, 10, 0, 0, 0)));
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event1",
+                new DateTime(2017, 3, 1, 0, 0, 0)));
+        SimulatedEvents.getInstance().addEvent(new SimulatedEvent("event77", //different event - shouldn't be in results
+                new DateTime(2017, 2, 1, 0, 0, 0)));
+
+        DateTime deploymentTime = new DateTime(2016, 1, 1, 0, 0);
+        Period graphPeriod = Period.years(3);
+
+        List<List<GraphPoint>> pointsLists =
+                RuleRunner.generateGraphPoints(deploymentTime,
+                        new Interval(deploymentTime, deploymentTime.plus(graphPeriod)));
+
+        List<GraphPoint> points = pointsLists.get(0);
+
+        int i = 0;
+        assertStateAtTimeEquals(points, i++,
+                deploymentTime,
+                ChannelState.DISABLED);
+
+        assertStateAtTimeEquals(points, i++,
+                new DateTime(2017, 1, 1, 5, 0, 0),
+                ChannelState.ENABLED);
+        assertStateAtTimeEquals(points, i++,
+                new DateTime(2017, 1, 1, 6, 0, 0),
+                ChannelState.DISABLED);
+
+        assertStateAtTimeEquals(points, i++,
+                new DateTime(2017, 1, 10, 0, 0, 0),
+                ChannelState.ENABLED);
+        assertStateAtTimeEquals(points, i++,
+                new DateTime(2017, 1, 10, 1, 0, 0),
+                ChannelState.DISABLED);
+
+        assertStateAtTimeEquals(points, i++,
+                new DateTime(2017, 3, 1, 0, 0, 0),
+                ChannelState.ENABLED);
+        assertStateAtTimeEquals(points, i++,
+                new DateTime(2017, 3, 1, 1, 0, 0),
+                ChannelState.DISABLED);
+
+        assertStateAtTimeEquals(points, i++,
+                new DateTime(1000000, 1, 1, 0, 0, 0),
+                ChannelState.ENABLED);
+    }
+
+    @Test
     public void testRuleOneHourAfterEvent()
             throws InvalidSyntaxException, Rules.RuleAlreadyExists, Rule.InvalidIntervalException {
         RuleParser.parseMultiple("enable channel 1 for one hour starting 1 hour after event event1");

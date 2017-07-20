@@ -15,11 +15,17 @@ import org.pushingpixels.substance.api.skin.SubstanceGraphiteLookAndFeel;
 
 import javax.swing.*;
 import javax.swing.event.*;
+import javax.swing.filechooser.FileFilter;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Created by mcochrane on 30/10/16.
@@ -456,6 +462,10 @@ public class FrmMain implements Runnable {
         menu_item_get_time.addActionListener(new MenuDevGetTimeActionListener());
         menu_device.add(menu_item_get_time);
 
+        JMenuItem menu_item_update_firmware = new JMenuItem("Update Firmware");
+        menu_item_update_firmware.addActionListener(new MenuDevUpdateFirmwareActionListener());
+        menu_device.add(menu_item_update_firmware);
+
         menu_bar.add(menu_device);
 
         return menu_bar;
@@ -483,6 +493,7 @@ public class FrmMain implements Runnable {
     }
 
     private void DisconnectDevice() {
+        if (serialHandler == null) return;
         serialHandler.Disconnect();
         serialHandler = null;
         statusBarLabel.setText("Not Connected");
@@ -508,7 +519,7 @@ public class FrmMain implements Runnable {
                 DisconnectDevice();
             }
 
-            DeviceSelector dev_sel = new DeviceSelector();
+            OSTDeviceSelector dev_sel = new OSTDeviceSelector();
             dev_sel.setVisible(true);
             System.out.printf("Selected port '%s'\r\n", dev_sel.result);
 
@@ -520,6 +531,19 @@ public class FrmMain implements Runnable {
             } catch (SerialPortException e) {
                 System.out.println("Couldn't connect to device");
             }
+
+//            DeviceSelector dev_sel = new DeviceSelector();
+//            dev_sel.setVisible(true);
+//            System.out.printf("Selected port '%s'\r\n", dev_sel.result);
+//
+//            if (dev_sel.result.isEmpty()) return;
+//
+//            try {
+//                serialHandler = new SerialHandler(dev_sel.result, 115200, new FrameReceiver());
+//                statusBarLabel.setText("Connected to '" + dev_sel.result + "'");
+//            } catch (SerialPortException e) {
+//                System.out.println("Couldn't connect to device");
+//            }
 
         }
     }
@@ -543,6 +567,197 @@ public class FrmMain implements Runnable {
                 return;
             }
             serialHandler.frame_transmitter.sendGetRtcTime();
+        }
+    }
+
+    private String execSystemCommandLinux(String cmd) {
+        try {
+            Runtime rt = Runtime.getRuntime();
+            Process proc = rt.exec(cmd);
+            proc.waitFor();
+            StringBuffer output = new StringBuffer();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+            String line = "";
+            while ((line = reader.readLine())!= null) {
+                output.append(line + "\n");
+            }
+            return output.toString();
+        } catch (Throwable t) {
+            t.printStackTrace();
+            return null;
+        }
+    }
+
+    public interface StringCallback {
+        void stringCallback(String line);
+    }
+
+
+    private void execSystemCmdLinuxWithLiveResponseCallback(String command, StringCallback stdInputLineHandler,
+                                                            StringCallback stdErrorLineHandler) {
+        try {
+            Runtime rt = Runtime.getRuntime();
+//            String[] commands = {"system.exe","-get t"};
+            Process proc = rt.exec(command);
+
+            BufferedReader stdInput = new BufferedReader(new
+                    InputStreamReader(proc.getInputStream()));
+
+            BufferedReader stdError = new BufferedReader(new
+                    InputStreamReader(proc.getErrorStream()));
+
+            // read the output from the command
+            String s = null;
+            while ((s = stdInput.readLine()) != null) {
+                stdInputLineHandler.stringCallback(s);
+            }
+
+            // read any errors from the attempted command
+            while ((s = stdError.readLine()) != null) {
+                stdErrorLineHandler.stringCallback(s);
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+    }
+
+    private boolean checkBOSSACmdResponse(String response) {
+        String expected = "Basic Open Source SAM-BA Application (BOSSA) Version 1.8";
+        String[] parts = response.split("\n");
+        if (parts.length < 2) return false;
+        if (!Objects.equals(parts[1], expected)) return false;
+        return true;
+    }
+
+    private String findBOSSAExecutable() {
+        if (OSValidator.isUnix()) {
+            String cmdName = "bossac";
+            String response = "";
+            while ( ((response = execSystemCommandLinux(cmdName + " -h")) == null) || !checkBOSSACmdResponse(response) ) {
+                JFileChooser BOSSAExecChooser = new JFileChooser();
+                BOSSAExecChooser.setDialogTitle("Could not find bossac executable, please specify its path.");
+                //TODO: Do you want to download it?
+                FileFilter filterWithoutExtension = new FileFilter() {
+
+                    @Override
+                    public boolean accept(File f) {
+                        // This will display only the files without "."
+                        return Objects.equals(f.getName(), "bossac") || f.isDirectory();
+                    }
+
+                    @Override
+                    public String getDescription() {
+                        return "bossac executable";
+                    }
+                };
+                BOSSAExecChooser.setFileFilter(filterWithoutExtension);
+                if (BOSSAExecChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return null;
+                cmdName = BOSSAExecChooser.getSelectedFile().getPath();
+            }
+            return cmdName;
+        } else if (OSValidator.isWindows()) {
+
+        } else if (OSValidator.isMac()) {
+
+        }
+        return null;
+    }
+
+
+    private void programFirmware(String bossaExec, String firmwareFile) {
+        DisconnectDevice();
+        JOptionPane.showMessageDialog(null, "Please restart-device in firmware upload mode by powering it on while holding the Firmware Update button.", "Restart Device", JOptionPane.INFORMATION_MESSAGE);
+
+        DeviceSelector dev_sel = new DeviceSelector();
+        dev_sel.setVisible(true);
+        System.out.printf("Selected port for firmware upload '%s'\r\n", dev_sel.result);
+
+        if (dev_sel.result.isEmpty()) return;
+
+        if (OSValidator.isUnix()) {
+            String args = "-e -w -v -R --port=" + dev_sel.result + " " + firmwareFile + "";
+            String command = bossaExec + " " + args;
+            System.out.printf("Running Command '%s'\r\n", command);
+
+            WaitDialog wait_dialog = new WaitDialog("Erasing flash", 3);
+
+            final boolean[] wasError = {false};
+            String[] errorStr = {""};
+
+            SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+
+                @Override
+                protected Boolean doInBackground() throws InterruptedException {
+                    execSystemCmdLinuxWithLiveResponseCallback(command, new StringCallback() {
+                        @Override
+                        public void stringCallback(String line) {
+                            String currentTaskStr = "";
+
+                            if (wait_dialog.get_progress() == 0) {
+                                currentTaskStr = "Erasing flash";
+                            } else if (wait_dialog.get_progress() == 1) {
+                                currentTaskStr = "Writing flash";
+                            } else if (wait_dialog.get_progress() == 2) {
+                                currentTaskStr = "Verifying flash";
+                            }
+
+                            wait_dialog.update_text(currentTaskStr + ": " + line);
+                            if (line.startsWith("Done in ")) {
+                                wait_dialog.increment_update();
+                            }
+//                            System.out.println(line);
+                        }
+                    }, new StringCallback() {
+                        @Override
+                        public void stringCallback(String line) {
+                            System.out.printf("err: %s\n", line);
+                            wasError[0] = true;
+                            errorStr[0] +=  line + "\n";
+                        }
+                    });
+                    return true;
+                }
+                @Override
+                protected void done() {
+                    wait_dialog.dispose();
+                }
+            };
+
+            worker.execute();
+            wait_dialog.setVisible(true);
+
+            if (wasError[0]) {
+                JOptionPane.showMessageDialog(null, "Error Programming Device: \r\n" + errorStr[0] , "Error", JOptionPane.ERROR_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(null, "Successfully wrote firmware to device.  You can now re-connect.", "Error", JOptionPane.INFORMATION_MESSAGE);
+            }
+        } else if (OSValidator.isWindows()) {
+
+        } else if (OSValidator.isMac()) {
+
+        }
+    }
+
+    class MenuDevUpdateFirmwareActionListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent actionEvent) {
+//            if (serialHandler == null) {
+//                JOptionPane.showMessageDialog(null, "Not connected to a device.", "Warning", JOptionPane.WARNING_MESSAGE);
+//                return;
+//            }
+
+            JFileChooser firmwareChooser = new JFileChooser();
+            firmwareChooser.setDialogTitle("Choose firmware file to upload");
+            //TODO: do you want to download the latest version?
+            firmwareChooser.setFileFilter(new FileNameExtensionFilter("Firmware Binary", "bin"));
+            if (firmwareChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
+            File firmwareFile = firmwareChooser.getSelectedFile();
+
+            System.out.printf("File Selected: %s\r\n", firmwareFile.getPath());
+
+            // Try and find bossa console executable
+            String bossaExec = findBOSSAExecutable();
+            programFirmware(bossaExec, firmwareFile.getPath());
         }
     }
 

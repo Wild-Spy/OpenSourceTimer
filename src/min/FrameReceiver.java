@@ -27,6 +27,8 @@ public class FrameReceiver implements ReceivedFrameHandler {
     public static final int MIN_ID_RESPONSE_GENERAL_ACK        = 0x00;
     public static final int MIN_ID_RESPONSE_GENERAL_NAK        = 0x01;
 
+    public static final int MIN_ID_RESPONSE_GET_DEVICE_TYPE    = 0x33;
+
 
     private ReceivedFrameHandler response_callback_ = null;
 
@@ -125,6 +127,12 @@ public class FrameReceiver implements ReceivedFrameHandler {
                 if (response_callback_ != null) {
                     response_callback_.handleReceivedFrame(frame);
                 }
+                break;
+            case MIN_ID_RESPONSE_GET_DEVICE_TYPE:
+                if (response_callback_ != null) {
+                    response_callback_.handleReceivedFrame(frame);
+                }
+                break;
             default:
                 System.out.println(frame.toString());
         }

@@ -150,6 +150,16 @@ public class RuleParserTest {
     }
 
     @Test
+    public void testParseRuleWithStartOnEvent() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
+        Rule r = RuleParser.parse("enable channel 1 for one hour starting on event event1");
+        assertEquals(r.getIntervals().get(0), TimeHelper.betweenHours(0, 1).get(0));
+        assertEquals(r.getPeriod(), TimeHelper.infinitePeriod());
+        assertEquals(r.getStartOfFirstPeriod(), null);
+        assertEquals(r.getStartOfFirstPeriodEventName(), "event1");
+        assertEquals(r.getStartOfFirstPeriodEventDelay(), null); //1 hour
+    }
+
+    @Test
     public void testParseRulesWithInvalidSyntax() throws InvalidSyntaxException, Rule.InvalidIntervalException, Rules.RuleAlreadyExists {
         try {
             Rule r = RuleParser.parse("enable channel 1 for one hour starting");

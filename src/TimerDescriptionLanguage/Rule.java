@@ -403,7 +403,7 @@ public class Rule {
         return bestTime;
     }
 
-    //if find closest to now in the past
+    //if find closest to now in the past (or now)
     private DateTime findPreviousInList(DateTime now, List<DateTime> times) {
         Collections.sort(times);
         long bestDist = Long.MIN_VALUE;
@@ -411,7 +411,7 @@ public class Rule {
 
         for (DateTime t : times) {
             long dist = t.getMillis() - now.getMillis();
-            if (dist > bestDist && dist < 0) {
+            if (dist > bestDist && dist <= 0) {
                 bestDist = dist;
                 bestTime = t;
             }
