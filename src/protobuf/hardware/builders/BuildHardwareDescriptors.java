@@ -9,6 +9,7 @@ public class BuildHardwareDescriptors implements Runnable {
     @Override
     public void run() {
         OSTRev0DescriptorBuilder.compile();
+        OSTRev1DescriptorBuilder.compile();
     }
 
     public static void main(String[] args) throws Exception {

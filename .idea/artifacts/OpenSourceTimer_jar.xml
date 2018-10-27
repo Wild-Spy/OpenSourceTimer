@@ -17,6 +17,7 @@
       <element id="library" level="project" name="org.ocpsoft.prettytime:prettytime-integration-jstl:4.0.0.Final" />
       <element id="library" level="project" name="joda-time:joda-time:2.9.4" />
       <element id="file-copy" path="$PROJECT_DIR$/lib/jssc.jar" />
+      <element id="library" level="project" name="com.google.protobuf:protobuf-java:3.3.0" />
     </root>
   </artifact>
 </component>

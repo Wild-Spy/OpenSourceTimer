@@ -2,12 +2,16 @@ package min;
 
 import TimerDescriptionLanguage.Rule;
 import TimerDescriptionLanguage.Rules;
+import TimerDescriptionLanguage.TimeHelper;
 import org.joda.time.DateTime;
 import org.joou.UByte;
 import org.joou.UInteger;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static min.FrameReceiver.MIN_ID_RESPONSE_GET_DEVICE_TYPE;
+import static min.FrameReceiver.MIN_ID_RESPONSE_GET_FIRMWARE_VERSION;
 
 /**
  * Created by mcochrane on 2/04/17.
@@ -28,7 +32,7 @@ public class FrameTransmitter {
     private static final int MIN_ID_SAVE_RULES              = 0x0c;
     private static final int MIN_ID_PRINT_EEPROM            = 0x0d;
     private static final int MIN_ID_GET_DEVICE_TYPE         = 0x0e;
-//    private static final int MIN_ID_GET_DEVICE_FW_VER       = 0x0f; //firmware version
+    private static final int MIN_ID_GET_DEVICE_FW_VER       = 0x0f; //firmware version
 //    private static final int MIN_ID_GET_DEV_INFO            = 0x10;
 
     private SerialHandler serialHandler;
@@ -118,14 +122,21 @@ public class FrameTransmitter {
         sendFrame(MIN_ID_GET_RTC_TIME, data);
     }
 
+    public DateTime getRtcTimeBlocking(int timeout_ms) {
+        if (!serialHandler.received_frame_handler.waitForFreeResponseCallback(2000)) return null;
+        sendGetRtcTime();
+        Frame f = serialHandler.received_frame_handler.waitForResponseFrame(timeout_ms, UByte.valueOf(FrameReceiver.MIN_ID_RESPONSE_GET_RTC_TIME));
+        if (f == null) {
+            System.out.printf("Failed to get time.\r\n");
+            return null;
+        }
+        long t = SerialHandler.min_decode_unsigned(f.get_payload());
+        return TimeHelper.y2kEpochIntToDateTime(t);
+    }
+
     public void sendSetRtcTime(DateTime dateTime) {
         List<UByte> data = new ArrayList<>();
 
-//        private DateTime y2kEpochIntToDateTime(long y2k_time_secs) {
-//            long unix_y2k_offset_secs = 946684800; //in seconds
-//            long unix_time_secs = y2k_time_secs + unix_y2k_offset_secs;
-//            return new DateTime(unix_time_secs*1000);
-//        }
         long unix_y2k_offset_secs = 946684800; //in seconds
 
         data.addAll(SerialHandler.min_encode_u32((int)((dateTime.getMillis() / 1000) - unix_y2k_offset_secs)));
@@ -146,10 +157,36 @@ public class FrameTransmitter {
         sendFrame(MIN_ID_PRINT_EEPROM, data);
     }
 
+    private String getResponseAsString(int frame_id) {
+        Frame response = this.serialHandler.received_frame_handler.waitForResponseFrame(1000, null);
+        if (response == null) return "";
+        if (response.get_id().intValue() != frame_id) return "";
+        return response.payloadToCharString();
+    }
+
     public void sendGetDeviceType() {
         List<UByte> data = new ArrayList<>();
         data.add(UByte.valueOf(0));
         sendFrame(MIN_ID_GET_DEVICE_TYPE, data);
+    }
+
+    public String sendGetDeviceTypeBlocking() {
+        serialHandler.received_frame_handler.waitForFreeResponseCallback(100);
+        sendGetDeviceType();
+        return getResponseAsString(MIN_ID_RESPONSE_GET_DEVICE_TYPE);
+    }
+
+
+    public void sendGetDeviceFirmwareVersion() {
+        List<UByte> data = new ArrayList<>();
+        data.add(UByte.valueOf(0));
+        sendFrame(MIN_ID_GET_DEVICE_FW_VER, data);
+    }
+
+    public String sendGetDeviceFirmwareVersionBlocking() {
+        serialHandler.received_frame_handler.waitForFreeResponseCallback(1000);
+        sendGetDeviceFirmwareVersion();
+        return getResponseAsString(MIN_ID_RESPONSE_GET_FIRMWARE_VERSION);
     }
 
 }

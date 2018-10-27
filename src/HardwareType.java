@@ -18,7 +18,20 @@ import protobuf.hardware.TypeDescriptor.HardwareTypeDescriptor;
  */
 public class HardwareType {
     private String name;
-    HardwareTypeDescriptor typeDescriptor;
+    HardwareTypeDescriptor typeDescriptor = null;
+
+
+    public static String getNameFromId(Long id) {
+        if (id.equals(0L)) {
+            return "OSTRev0";
+        } else if (id.equals(1L)) {
+            return "OSTRev1";
+        } else return "Unknown";
+    }
+
+    public static HardwareType getFromId(Long id) {
+        return new HardwareType(getNameFromId(id));
+    }
 
     HardwareType(String name) {
         this.name = name;
@@ -82,6 +95,4 @@ public class HardwareType {
 
         return hardwareTypes;
     }
-
-
 }

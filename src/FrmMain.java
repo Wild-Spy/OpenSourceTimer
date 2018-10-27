@@ -3,6 +3,7 @@ import customwidgets.GraphPanel;
 import customwidgets.GraphPoint;
 import customwidgets.listeners.NeedsUpdatedDataListener;
 import customwidgets.SimulatedEventMutableTreeNode;
+import jsmaz.Smaz;
 import jssc.SerialPortException;
 import jssc.SerialPortList;
 import min.*;
@@ -23,9 +24,11 @@ import java.awt.event.*;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Created by mcochrane on 30/10/16.
@@ -121,18 +124,7 @@ public class FrmMain implements Runnable {
     private void regenGraphPoints(DateTime windowStart, DateTime windowStop) {
         List<List<Double>> scoresLists = new ArrayList<>();
         List<List<Long>> timesLists = new ArrayList<>();
-//        List<Double> scores1 = new ArrayList<>();
-//        List<Long> times1 = new ArrayList<>();
-//        List<Double> scores2 = new ArrayList<>();
-//        List<Long> times2 = new ArrayList<>();
-//        List<Double> scores3 = new ArrayList<>();
-//        List<Long> times3 = new ArrayList<>();
-//        List<Double> scores4 = new ArrayList<>();
-//        List<Long> times4 = new ArrayList<>();
         Interval window = new Interval(windowStart, windowStop);
-        //Period pointPeriod = new Interval(windowStart.getMillis(), windowStart.getMillis() + window.toDurationMillis()/maxDataPoints).toPeriod();
-        //update window to give a touch more scope
-        //Interval pointWindow = new Interval(windowStart.minus(pointPeriod), windowStop.plus(pointPeriod));
         int channelCount = Channels.getInstance().getCount();
 
         for (int i = 0; i < channelCount; i++) {
@@ -154,8 +146,6 @@ public class FrmMain implements Runnable {
             }
         }
 
-        //graphPanel1.clearAllGraphs();
-
         for (int i = 0; i < channelCount; i++) {
             //Channel chan = Channels.getInstance().get(i);
             graphPanel1.getGraph(i).updateData(scoresLists.get(i),
@@ -166,43 +156,6 @@ public class FrmMain implements Runnable {
             graphPanel1.getGraph(i+channelCount).updateData(scoresLists.get(i+channelCount),
                     timesLists.get(i+channelCount));
         }
-
-//        RuleRunner.startGraph(deploymentTime, window.getStart());
-////        RuleRunner.resetAll(deploymentTime);
-////        //RuleRunner.disableAll();
-////        //Rules.getInstance().get("zzz").enable();
-////        RuleRunner.start(deploymentTime);
-//////        RuleRunner.printStatusToConsole(deploymentTime);
-////        if (window.getStart().isAfter(deploymentTime)) {
-////            //RuleRunner.stepTo(window.getStart());
-////            RuleRunner.startGraph(window.getStart());
-//////            RuleRunner.printStatusToConsole(window.getStart());
-////        }
-//        addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow());
-//        addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow());
-//        addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow());
-//        addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow());
-//        do {
-//            RuleRunner.step();
-////            RuleRunner.printStatusToConsole(nextStateChange);
-//            addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow());
-//            addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow());
-//            addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow());
-//            addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow());
-//        } while (RuleRunner.getNow().isBefore(window.getEnd()));
-//
-//        //Add one more so we fill the full graph.
-//        RuleRunner.step();
-////        RuleRunner.printStatusToConsole(nextStateChange);
-//        addPointToChannelPoints(scores1, times1, "1", RuleRunner.getNow(), true);
-//        addPointToChannelPoints(scores2, times2, "2", RuleRunner.getNow(), true);
-//        addPointToChannelPoints(scores3, times3, "3", RuleRunner.getNow(), true);
-//        addPointToChannelPoints(scores4, times4, "4", RuleRunner.getNow(), true);
-//
-//        graphPanel1.getGraph(0).updateData(scores1, times1);
-//        graphPanel1.getGraph(1).updateData(scores2, times2);
-//        graphPanel1.getGraph(2).updateData(scores3, times3);
-//        graphPanel1.getGraph(3).updateData(scores4, times4);
     }
 
     private double channelStateToDouble(String chanName) {
@@ -234,6 +187,7 @@ public class FrmMain implements Runnable {
         frameRoot.setJMenuBar(createMenuBar());
         frameRoot.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frameRoot.pack();
+        frameRoot.setLocationRelativeTo(null);
         frameRoot.setVisible(true);
         setUiColors();
 //        frameRoot.setBackground(GraphPanel.backgroundColor);
@@ -241,7 +195,7 @@ public class FrmMain implements Runnable {
 //        setUiColors();
 
         DateTimeZone.setDefault(DateTimeZone.UTC);
-        this.deploymentTime = new DateTime(2017, 1, 1, 0, 0, 0);
+        this.deploymentTime = new DateTime(2000, 1, 1, 0, 0, 0);
         SimulatedEvents.getInstance().addEvent(new SimulatedEvent("1",
                 new DateTime(2017, 1, 3, 0, 0, 0), graphPanel1));
         SimulatedEvents.getInstance().addEvent(new SimulatedEvent("1",
@@ -327,12 +281,12 @@ public class FrmMain implements Runnable {
         txtRules.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent documentEvent) {
-
+                reparse();
             }
 
             @Override
             public void removeUpdate(DocumentEvent documentEvent) {
-
+                reparse();
             }
 
             @Override
@@ -351,41 +305,56 @@ public class FrmMain implements Runnable {
         btnReparse.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
-                Rules.resetInstance();
-                try {
-                    List<Rule> r = RuleParser.parseMultiple(txtRules.getText());
-                } catch (Exception ex) {
-                    System.out.println("error!");
-                    ex.printStackTrace();
-                }
-
-                System.out.print(Rules.getInstance().get(0).compile().toString());
-
-                int channelCount = Channels.getInstance().getCount();
-
-                List<Double> scores = new ArrayList<>();
-                List<Long> times = new ArrayList<>();
-                scores.add(0.0);
-                times.add(new DateTime().getMillis());
-                scores.add(1.0);
-                times.add(new DateTime().plusSeconds(1).getMillis());
-
-                graphPanel1.clearAllGraphs();
-                for (int i = 0; i < channelCount; i++) {
-                    //Channel chan = Channels.getInstance().get(i);
-                    graphPanel1.addChannelGraph("Channel " + (i+1), scores, times);
-                }
-                for (int i = 0; i < Rules.getInstance().count(); i++) {
-                    Rule rule = Rules.getInstance().get(i);
-                    graphPanel1.addRuleGraph(rule.getName(), scores, times);
-                }
-
-                regenGraphPoints(graphPanel1.getWindowStart(),
-                        graphPanel1.getWindowStop());
+                reparse();
             }
         });
 
         //btnReparse.doClick();
+    }
+
+    private void reparse() {
+        Rules.resetInstance();
+        try {
+            List<Rule> r = RuleParser.parseMultiple(txtRules.getText());
+        } catch (Exception ex) {
+            System.out.println("error!");
+            ex.printStackTrace();
+            txtRules.setBackground(Color.red);
+            txtRules.setToolTipText(ex.toString());
+            return;
+        }
+        txtRules.setBackground(Color.gray);
+        txtRules.setToolTipText("");
+
+        System.out.print(Rules.getInstance().get(0).compile().toString());
+        Smaz smaz = new Smaz();
+        byte[] compressed = smaz.compress(txtRules.getText());
+        //smaz.decompress(compressed)
+        System.out.print(compressed.toString());
+        System.out.printf("Smaz compression.  Orig: %d, compressed: %d", txtRules.getText().length(), compressed.length);
+//        System.out.printf("Smaz compression.  Orig: %d, compressed: %d, %f", txtRules.getText().length(), compressed.length, compressed.length/txtRules.getText().length());
+
+        int channelCount = Channels.getInstance().getCount();
+
+        List<Double> scores = new ArrayList<>();
+        List<Long> times = new ArrayList<>();
+        scores.add(0.0);
+        times.add(new DateTime().getMillis());
+        scores.add(1.0);
+        times.add(new DateTime().plusSeconds(1).getMillis());
+
+        graphPanel1.clearAllGraphs();
+        for (int i = 0; i < channelCount; i++) {
+            //Channel chan = Channels.getInstance().get(i);
+            graphPanel1.addChannelGraph("Channel " + (i+1), scores, times);
+        }
+        for (int i = 0; i < Rules.getInstance().count(); i++) {
+            Rule rule = Rules.getInstance().get(i);
+            graphPanel1.addRuleGraph(rule.getName(), scores, times);
+        }
+
+        regenGraphPoints(graphPanel1.getWindowStart(),
+                graphPanel1.getWindowStop());
     }
 
     private void createUIComponents() {
@@ -407,7 +376,7 @@ public class FrmMain implements Runnable {
         graphPanel1.addRuleGraph("B", scores, times);
 //        graphPanel1.setFullWindow();
 //        graphPanel1.scrollTo(DateTime.now(), Duration.standardDays(10));
-        graphPanel1.scrollTo(new DateTime(2017, 1, 1, 0, 0), new DateTime(2017, 5, 1, 1, 0, 0));
+        graphPanel1.scrollTo(new DateTime(2000, 1, 1, 0, 0), new DateTime(2000, 5, 1, 1, 0, 0));
     }
 
     private JMenuBar createMenuBar() {
@@ -481,14 +450,44 @@ public class FrmMain implements Runnable {
     class MenuOpenActionListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent actionEvent) {
-            ((JMenuItem)actionEvent.getSource()).setText(".........");
+//            ((JMenuItem)actionEvent.getSource()).setText(".........");
+
+            if (JOptionPane.showConfirmDialog(null, "All unsaved changes will be lost.  Are you sure you want to load a file?", "Warning!", JOptionPane.YES_NO_OPTION) == JOptionPane.NO_OPTION) return;
+
+            JFileChooser loadChooser = new JFileChooser();
+            loadChooser.setDialogTitle("Choose which file to load.");
+            loadChooser.setFileFilter(new FileNameExtensionFilter("Timer Description Language Files", "tdl"));
+            if (loadChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
+            File loadFile = loadChooser.getSelectedFile();
+
+            try {
+                String contents = new String(Files.readAllBytes(loadFile.toPath()));
+                txtRules.setText(contents);
+            } catch (Exception ex) {
+            }
         }
     }
 
     class MenuSaveActionListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent actionEvent) {
+            JFileChooser saveChooser = new JFileChooser();
+            saveChooser.setDialogTitle("Choose where to save your file.");
+            saveChooser.setFileFilter(new FileNameExtensionFilter("Timer Description Language Files", "tdl"));
+            if (saveChooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) return;
+            File saveFile = saveChooser.getSelectedFile();
 
+            // Ensure correct extension
+            if (!saveFile.getName().endsWith(".tdl")) {
+                saveFile = new File(saveFile.toString() + ".tdl");
+            }
+
+            try {
+                PrintWriter out = new PrintWriter(saveFile);
+                out.print(txtRules.getText());
+                out.close();
+            } catch (Exception ex) {
+            }
         }
     }
 
@@ -502,10 +501,39 @@ public class FrmMain implements Runnable {
     class MenuDevWindowShowActionListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent actionEvent) {
+            if (serialHandler == null) return;
+
             if (frmDevice == null)
                 frmDevice = new FrmDevice(FrmMain.this);
 
             frmDevice.setVisible(true);
+            final Long[] devType = {null};
+
+            serialHandler.received_frame_handler.setResponseCallback(new ReceivedFrameHandler() {
+                @Override
+                public void handleReceivedFrame(Frame frame) {
+                    if (frame.get_id().intValue() != FrameReceiver.MIN_ID_RESPONSE_GET_DEVICE_TYPE) return;
+                    devType[0] = SerialHandler.min_decode_unsigned(frame.get_payload());
+                    serialHandler.received_frame_handler.deleteResponseCallback();
+                }
+            });
+
+            String dev_type_name = serialHandler.frame_transmitter.sendGetDeviceTypeBlocking();
+
+            if (dev_type_name.isEmpty()) return;
+
+            HardwareType hw_type = new HardwareType(dev_type_name);
+            if (hw_type.typeDescriptor == null) return;
+
+            frmDevice.setHardwareType(hw_type);
+        }
+    }
+
+    class SerialHandlerDisconnect implements SerialHandlerDisconnectCallback {
+        @Override
+        public void handleReceivedFrame(SerialHandler sh) {
+            DisconnectDevice();
+//            JOptionPane.showMessageDialog(null, "Device disconnected.", "Warning", JOptionPane.WARNING_MESSAGE);
         }
     }
 
@@ -527,7 +555,9 @@ public class FrmMain implements Runnable {
 
             try {
                 serialHandler = new SerialHandler(dev_sel.result, 115200, new FrameReceiver());
+                serialHandler.setDisconnectCallback(new SerialHandlerDisconnect());
                 statusBarLabel.setText("Connected to '" + dev_sel.result + "'");
+                serialHandler.frame_transmitter.sendGetDeviceTypeBlocking(); // Seems to fail on first request so make a request so the next one works.
             } catch (SerialPortException e) {
                 System.out.println("Couldn't connect to device");
             }
@@ -555,7 +585,9 @@ public class FrmMain implements Runnable {
                 JOptionPane.showMessageDialog(null, "Not connected to a device.", "Warning", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            serialHandler.frame_transmitter.sendSetRtcTime(DateTime.now());
+            DateTime d = new DateTime(TimeZone.getDefault().getOffset(DateTime.now().getMillis()) + DateTime.now().getMillis());
+//            DateTime d = new DateTime(new DateTime(2017, 8, 31, 23, 59, 0).getMillis());
+            serialHandler.frame_transmitter.sendSetRtcTime(d);
         }
     }
 
@@ -566,7 +598,19 @@ public class FrmMain implements Runnable {
                 JOptionPane.showMessageDialog(null, "Not connected to a device.", "Warning", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            serialHandler.frame_transmitter.sendGetRtcTime();
+            try {
+                DateTime dt = serialHandler.frame_transmitter.getRtcTimeBlocking(6000);
+                if (dt == null) {
+                    JOptionPane.showMessageDialog(null, "Failed to get time from device.  Please try again." , "Time", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                graphPanel1.getMarker(0).setTime(dt);
+                JOptionPane.showMessageDialog(null, "RTC Time: " + dt.toString() , "Time", JOptionPane.INFORMATION_MESSAGE);
+
+            } catch (Exception ex) {
+
+            }
+
         }
     }
 
@@ -729,7 +773,7 @@ public class FrmMain implements Runnable {
             if (wasError[0]) {
                 JOptionPane.showMessageDialog(null, "Error Programming Device: \r\n" + errorStr[0] , "Error", JOptionPane.ERROR_MESSAGE);
             } else {
-                JOptionPane.showMessageDialog(null, "Successfully wrote firmware to device.  You can now re-connect.", "Error", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Successfully wrote firmware to device.  You can now re-connect.", "Success", JOptionPane.INFORMATION_MESSAGE);
             }
         } else if (OSValidator.isWindows()) {
 
@@ -774,14 +818,10 @@ public class FrmMain implements Runnable {
             int result = JOptionPane.showConfirmDialog(null, "Are you sure you want to erase all rules from the device?");
             if (result != 0) return;
 
-            try {
-                serialHandler.frame_transmitter.sendEraseAllRules();
-                if (serialHandler.received_frame_handler.waitForResponse() != FrameReceiver.ResponseType.Ack) {
-                    System.out.printf("Failed to erase all rules.\r\n");
-                    return;
-                }
-            }  catch (InterruptedException e) {
-                e.printStackTrace();
+            serialHandler.frame_transmitter.sendEraseAllRules();
+            if (serialHandler.received_frame_handler.waitForResponse(3000) != FrameReceiver.ResponseType.Ack) {
+                System.out.printf("Failed to erase all rules.\r\n");
+                return;
             }
 
         }
@@ -806,12 +846,24 @@ public class FrmMain implements Runnable {
                     FrameReceiver.ResponseType response;
 
                     serialHandler.frame_transmitter.sendEraseAllRules();
-                    if (serialHandler.received_frame_handler.waitForResponse() != FrameReceiver.ResponseType.Ack) {
+                    if (serialHandler.received_frame_handler.waitForResponse(3000) != FrameReceiver.ResponseType.Ack) {
                         System.out.printf("Failed to erase all rules.\r\n");
                         return false;
                     }
 
                     List<Rule> allRules = Rules.getInstance().getAll();
+
+                    // Must sort the list so we upload the rules in order
+                    allRules.sort(new Comparator<Rule>() {
+                        public int compare(Rule r1, Rule r2) {
+                            int id1 = r1.getId();
+                            int id2 = r2.getId();
+                            return id1 < id2 ? -1
+                                    : id2 > id1 ? 1
+                                    : 0;
+                        }
+                    });
+
                     for (Rule r : allRules) {
                         System.out.printf("Sending rule %d\r\n", r.getId());
                         boolean sent_rule_successfully = false;
@@ -819,7 +871,7 @@ public class FrmMain implements Runnable {
                         while (send_rule_attempts_remaining-- > 0 && !sent_rule_successfully) {
                             serialHandler.frame_transmitter.sendRule(r);
 
-                            response = serialHandler.received_frame_handler.waitForResponse();
+                            response = serialHandler.received_frame_handler.waitForResponse(3000);
 
                             if (response == FrameReceiver.ResponseType.Ack) {
                                 sent_rule_successfully = true;
@@ -836,7 +888,7 @@ public class FrmMain implements Runnable {
 
                     System.out.printf("Save rules...\r\n");
                     serialHandler.frame_transmitter.sendSaveRules();
-                    if (serialHandler.received_frame_handler.waitForResponse() != FrameReceiver.ResponseType.Ack) {
+                    if (serialHandler.received_frame_handler.waitForResponse(5000) != FrameReceiver.ResponseType.Ack) {
                         System.out.printf("Failed to save rules.\r\n");
                         return false;
                     }

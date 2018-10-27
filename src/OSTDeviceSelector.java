@@ -61,6 +61,7 @@ public class OSTDeviceSelector extends JDialog {
         refreshDeviceList();
 
         pack();
+        setLocationRelativeTo(null);
     }
 
     public void refreshDeviceList() {
@@ -74,30 +75,17 @@ public class OSTDeviceSelector extends JDialog {
             try {
                 SerialHandler sh = new SerialHandler(name, 115200, fr);
 
-                final Long[] devType = {null};
+                String dev_name = sh.frame_transmitter.sendGetDeviceTypeBlocking();
 
-                fr.setResponseCallback(new ReceivedFrameHandler() {
-                    @Override
-                    public void handleReceivedFrame(Frame frame) {
-                        devType[0] = SerialHandler.min_decode_unsigned(frame.get_payload());
-                    }
-                });
-
-                sh.frame_transmitter.sendGetDeviceType();
-
-                DateTime sendTime = DateTime.now();
-                long timeout_ms = 500;
-
-                // Wait for response or timeout
-                while ((DateTime.now().getMillis() - sendTime.getMillis()) < timeout_ms && devType[0] == null);
-
+                // Refresh button animation...
                 int copies = (buttonRefresh.getText().split(" ")[1].length() + 1) % 3;
                 buttonRefresh.setText("Refreshing " +  new String(new char[copies]).replace("\0", "."));
                 buttonRefresh.updateUI();
 
-                if (devType[0] != null) {
-                    cbPortSelect.addItem(name + ": " + Long.toHexString(devType[0]));
+                if (dev_name.startsWith("OSTRev")) {
+                    cbPortSelect.addItem(name + ": " + dev_name);
                 }
+
                 sh.Disconnect();
             } catch (SerialPortException ex) {
                 //do nothing...

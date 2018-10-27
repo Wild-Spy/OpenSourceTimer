@@ -37,6 +37,10 @@ public class SerialHandler {
 
     private Receiver receiver;
     private Sender sender;
+    private DevicePinger pinger;
+
+    private SerialHandlerDisconnectCallback disconnectCallback = null;
+    private boolean disconnected = false;
 
     public SerialHandler(String port, int baudrate, FrameReceiver received_frame_handler)
             throws jssc.SerialPortException {
@@ -56,27 +60,43 @@ public class SerialHandler {
 
         this.receiver = new Receiver();
         this.sender = new Sender();
+        this.pinger = new DevicePinger();
 
         Thread receive_thread = new Thread(this.receiver);
         Thread send_thread = new Thread(this.sender);
 
+        Thread ping_thread = new Thread(this.pinger);
+
         receive_thread.setDaemon(true);
         send_thread.setDaemon(true);
+        ping_thread.setDaemon(true);
 
         receive_thread.start();
         send_thread.start();
+        ping_thread.start();
 
         frame_transmitter = new FrameTransmitter(this);
 
     }
 
+    public void setDisconnectCallback(SerialHandlerDisconnectCallback dcc) {
+        this.disconnectCallback = dcc;
+    }
+
     public void Disconnect() {
+        if (disconnected) return;
+        disconnected = true;
+        pinger.shutdown();
         receiver.shutdown();
         sender.shutdown();
         try {
             this.serial.closePort();
         } catch (SerialPortException ex) {
             //must be closed...
+        }
+
+        if (this.disconnectCallback != null) {
+            this.disconnectCallback.handleReceivedFrame(this);
         }
     }
 
@@ -87,6 +107,42 @@ public class SerialHandler {
     private void printfln(String s, Object... objects) {
         System.out.printf(s, objects);
         System.out.println();
+    }
+
+    class DevicePinger implements Runnable {
+        public boolean halt = false;
+        private int fails = 0;
+        @Override
+        public void run() {
+            while (!halt) {
+                try {
+                    Thread.sleep(100);
+                    while (!SerialHandler.this.received_frame_handler.waitForFreeResponseCallback(1000));
+                    SerialHandler.this.frame_transmitter.sendPing();
+                    Frame f = SerialHandler.this.received_frame_handler.waitForResponseFrame(500, UByte.valueOf(FrameReceiver.MIN_ID_RESPONSE_PING));
+                    if (f == null ||
+                        f.get_length() != 3 ||
+                        !(Objects.equals(f.get_payload().get(0), UByte.valueOf(0x01)) &&
+                          Objects.equals(f.get_payload().get(1), UByte.valueOf(0x02)) &&
+                          Objects.equals(f.get_payload().get(2), UByte.valueOf(0x03)))) {
+                        // If we didn't receive the correct ping
+                        fails += 1;
+                    } else {
+                        fails = 0;
+                    }
+                    if (fails > 5) {
+                        SerialHandler.this.Disconnect();
+                    }
+                } catch (InterruptedException ex) {
+
+                }
+            }
+        }
+
+        public void shutdown() {
+            halt = true;
+        }
+
     }
 
     /**

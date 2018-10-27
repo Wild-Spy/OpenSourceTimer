@@ -9,6 +9,8 @@ import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.util.List;
 
 /**
@@ -21,7 +23,11 @@ public class FrmDevice {
     private ImagePanel imgDev;
     private JTree treeDesc;
     private JLabel lblTitle;
+    private JRadioButton rbFront;
+    private JRadioButton rbBack;
+    private JRadioButton rbAngled;
     private HardwareType hardwareType;
+    private String cur_img_name = "Front";
 
     public FrmDevice(FrmMain frmMain) {
         JFrame.setDefaultLookAndFeelDecorated(true);
@@ -36,11 +42,39 @@ public class FrmDevice {
         frameRoot.setJMenuBar(createMenuBar());
         frameRoot.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         frameRoot.pack();
+        frameRoot.setLocationRelativeTo(null);
         frameRoot.setVisible(true);
+
+        rbAngled.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    updateHardwareImage("Angled");
+                }
+            }
+        });
+
+        rbFront.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    updateHardwareImage("Front");
+                }
+            }
+        });
+
+        rbBack.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    updateHardwareImage("Back");
+                }
+            }
+        });
 
         List<HardwareType> allHardware = HardwareType.getAll();
 
-        setHardwareType(allHardware.get(0));
+        setHardwareType(allHardware.get(1));
     }
 
     public void setVisible(boolean visible) {
@@ -51,6 +85,17 @@ public class FrmDevice {
         this.hardwareType = hardwareType;
         this.lblTitle.setText(hardwareType.getDesc().getName());
         addHardwareInfoToTreeView();
+        updateHardwareImage();
+    }
+
+    private void updateHardwareImage() {
+        updateHardwareImage(this.cur_img_name);
+    }
+    private void updateHardwareImage(String img_name) {
+        this.cur_img_name = img_name;
+        String img_path = "src/resources/hardware/" + this.hardwareType.getName() + "/PCB_" + img_name + ".png";
+        imgDev.setImage(img_path);
+        imgDev.updateUI();
     }
 
     private void addHardwareInfoToTreeView() {
@@ -134,7 +179,7 @@ public class FrmDevice {
     private void createUIComponents() {
         // TODO: place custom component creation code here
         imgDev = new ImagePanel();
-        imgDev.setImage("src/resources/hardware/OSTRev0/PCB_Top.png");
+        imgDev.setImage("src/resources/hardware/OSTRev0/PCB_Front.png");
     }
 
 }

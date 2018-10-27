@@ -41,6 +41,7 @@ public class WaitDialog extends JDialog {
 
         pack();
         displayLabel.setText(display_text);
+        setLocationRelativeTo(null);
     }
 
     public void update(int progress) {

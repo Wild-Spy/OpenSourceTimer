@@ -50,6 +50,7 @@ public class DeviceSelector extends JDialog {
         }
 
         pack();
+        setLocationRelativeTo(null);
     }
 
     private void onOK() {

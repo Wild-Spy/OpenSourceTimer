@@ -60,14 +60,19 @@ public class RuleRunner {
 
         RuleRunner.startGraph(startingTime, window.getStart());
         addCurrentGraphPointToList(pointsList, true);
+        long startTime = System.nanoTime();
         do {
             step();
             addCurrentGraphPointToList(pointsList, false);
+//            if (pointsList.get(0).size() > 1000) break;
+            if (System.nanoTime() - startTime > 0.1*1e9) break;
         } while (getNow().isBefore(window.getEnd()));
 
         //Add one more so we fill the full graph.
         step();
         addCurrentGraphPointToList(pointsList, true);
+
+//        System.out.printf("list size: %d\n", pointsList.get(0).size());
 
         return pointsList;
     }

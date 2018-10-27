@@ -1,9 +1,13 @@
 package min;
 
+import TimerDescriptionLanguage.TimeHelper;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joou.UByte;
 import org.joou.UInteger;
+
+import javax.swing.*;
+import java.util.Objects;
 
 /**
  * Created by mcochrane on 2/04/17.
@@ -26,8 +30,10 @@ public class FrameReceiver implements ReceivedFrameHandler {
 
     public static final int MIN_ID_RESPONSE_GENERAL_ACK        = 0x00;
     public static final int MIN_ID_RESPONSE_GENERAL_NAK        = 0x01;
+    public static final int MIN_ID_RESPONSE_PING               = 0x02;
 
     public static final int MIN_ID_RESPONSE_GET_DEVICE_TYPE    = 0x33;
+    public static final int MIN_ID_RESPONSE_GET_FIRMWARE_VERSION = 0x34;
 
 
     private ReceivedFrameHandler response_callback_ = null;
@@ -40,8 +46,9 @@ public class FrameReceiver implements ReceivedFrameHandler {
         Timeout
     }
 
-    public ResponseType waitForResponse() throws InterruptedException {
+    public ResponseType waitForResponse(Integer timeout_ms) {
         response = ResponseType.Timeout;
+        if (timeout_ms == null) timeout_ms = 3000; //3 seconds
 
         setResponseCallback(new ReceivedFrameHandler() {
             @Override
@@ -56,19 +63,86 @@ public class FrameReceiver implements ReceivedFrameHandler {
         });
 
         long start_time = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start_time < 3000) { //1 second timeout
+        while (System.currentTimeMillis() - start_time < timeout_ms) {
             if (response != ResponseType.Timeout) break;
-            Thread.sleep(10); //sleep for 10ms
+            try {
+                Thread.sleep(10); //sleep for 10ms
+            } catch (InterruptedException e) {
+                // Do nothing, just continue
+            }
         }
+
+        deleteResponseCallback();
 
         return response;
     }
 
-    public void setResponseCallback(ReceivedFrameHandler callback) {
-        response_callback_ = callback;
+    /**
+     * Returns either the returned Frame, or null if it timed out
+     * @return Frame
+     */
+    public Frame waitForResponseFrame(int timeout_ms, UByte expected_id) {
+        final Frame[] result = new Frame[1];
+        result[0] = null;
+        setResponseCallback(new ReceivedFrameHandler() {
+            @Override
+            public void handleReceivedFrame(Frame frame) {
+                result[0] = frame;
+            }
+        });
+
+        long start_time = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start_time < timeout_ms) {
+            if (result[0] != null) {
+                if (expected_id != null && Objects.equals(result[0].get_id(), expected_id)) break;
+            }
+            try {
+                Thread.sleep(10); //sleep for 10ms
+            } catch (InterruptedException e) {
+                // Do nothing, just continue.
+            }
+        }
+
+        deleteResponseCallback();
+
+        return result[0];
     }
 
-    public void deleteResponseCallback() {
+    /**
+     * Waits until the response callback is null.
+     * @param timeout_ms    the number of milliseconds after which the function will time out
+     * @return boolean  true if the response callback became null before the timeout
+     *                  false if the function timed out before the callback became null
+     */
+    public boolean waitForFreeResponseCallback(int timeout_ms) {
+        boolean result = false;
+
+        long start_time = System.currentTimeMillis();
+        while (timeout_ms == -1 || System.currentTimeMillis() - start_time < timeout_ms) {
+            if (!hasResponseCallback()) {
+                result = true;
+                break;
+            }
+            try {
+                Thread.sleep(10); //sleep for 10ms
+            } catch (InterruptedException e) {
+                // Do nothing, just continue.
+            }
+        }
+
+        return result;
+    }
+
+    public synchronized boolean hasResponseCallback() {
+        return response_callback_ != null;
+    }
+
+    public synchronized void setResponseCallback(ReceivedFrameHandler callback) {
+        if (hasResponseCallback()) return;
+        response_callback_ = callback; //TODO: allow multiple callbacks and call them all.  Then remove when done!!!
+    }
+
+    public synchronized void deleteResponseCallback() {
         response_callback_ = null;
     }
 
@@ -87,6 +161,11 @@ public class FrameReceiver implements ReceivedFrameHandler {
                 break;
             case MIN_ID_RESPONSE_GET_RULE_WITH_ID:
                 break;
+            case MIN_ID_RESPONSE_PING:
+                if (response_callback_ != null) {
+                    response_callback_.handleReceivedFrame(frame);
+                }
+                break;
             case MIN_ID_RESPONSE_GENERAL:
                 long code = SerialHandler.min_decode(frame.get_payload());
                 if (code == MIN_ID_RESPONSE_GENERAL_ACK) {
@@ -103,7 +182,11 @@ public class FrameReceiver implements ReceivedFrameHandler {
             case MIN_ID_RESPONSE_GET_RTC_TIME:
                 long t = SerialHandler.min_decode_unsigned(frame.get_payload());
                 System.out.println(frame.toString());
-                DateTime dt = y2kEpochIntToDateTime(t);
+                DateTime dt = TimeHelper.y2kEpochIntToDateTime(t);
+                if (response_callback_ != null) {
+                    response_callback_.handleReceivedFrame(frame);
+                }
+//                JOptionPane.showMessageDialog(null, "RTC Time: " + dt.toString() , "Error", JOptionPane.ERROR_MESSAGE);
 //                DateTime dt = new DateTime(t*1000);
                 System.out.println("RTC Time: " + dt.toString());
 //                System.out.println("Offset Seconds: " + ((new DateTime(2010, 1, 1, 0, 0, 0)).getMillis() - dt.getMillis())/1000);

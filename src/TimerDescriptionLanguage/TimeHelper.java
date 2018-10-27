@@ -11,6 +11,12 @@ import java.util.List;
  */
 public final class TimeHelper {
 
+    public static DateTime y2kEpochIntToDateTime(long y2k_time_secs) {
+        long unix_y2k_offset_secs = 946684800; //in seconds
+        long unix_time_secs = y2k_time_secs + unix_y2k_offset_secs;
+        return new DateTime(unix_time_secs*1000);
+    }
+
     //Periods
     public static Period makePeriodMillis(int millis) {
         return Period.millis(millis);
